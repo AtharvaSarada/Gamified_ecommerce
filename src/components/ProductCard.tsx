@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { ShoppingCart, Eye, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn, formatPrice } from "@/lib/utils";
@@ -12,7 +12,7 @@ interface ProductCardProps {
   id: string;
   name: string;
   price: number;
-  image: string;
+  images: string[];
   rarity: Rarity;
   stock: number;
   fit: "regular" | "oversized";
@@ -46,19 +46,34 @@ export function ProductCard({
   id,
   name,
   price,
-  image,
+  images,
   rarity,
   stock,
   fit,
 }: ProductCardProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const { isInWishlist, toggleWishlist } = useWishlist();
+
+  // Cycle images on hover
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isHovered && images.length > 1) {
+      interval = setInterval(() => {
+        setCurrentImageIndex((prev) => (prev + 1) % images.length);
+      }, 1000); // Shuffle every 1 second
+    } else {
+      setCurrentImageIndex(0); // Reset to main image when not hovered
+    }
+    return () => clearInterval(interval);
+  }, [isHovered, images.length]);
 
   // Safety guards for missing/invalid data
   const safeRarity = rarity && rarityConfig[rarity] ? rarity : "common";
   const config = rarityConfig[safeRarity];
   const safeFit = fit ? fit.toUpperCase() : "REGULAR";
   const isWishlisted = isInWishlist(id);
+  const displayImage = images && images.length > 0 ? images[currentImageIndex] : "";
 
   return (
     <motion.div
@@ -106,16 +121,23 @@ export function ProductCard({
               <Heart size={16} fill={isWishlisted ? "currentColor" : "none"} className={cn(isWishlisted && "animate-pulse")} />
             </button>
 
-            {/* Product Image */}
-            <img
-              src={image}
-              alt={name}
-              className="absolute inset-0 w-full h-full object-cover object-center"
-            />
+            {/* Product Image with Fade Transition */}
+            <AnimatePresence mode="wait">
+              <motion.img
+                key={displayImage}
+                src={displayImage}
+                alt={name}
+                initial={{ opacity: 0.8 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0.8 }}
+                transition={{ duration: 0.2 }}
+                className="absolute inset-0 w-full h-full object-cover object-center"
+              />
+            </AnimatePresence>
 
             {/* Scan Line Effect on Hover */}
             <motion.div
-              className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/10 to-transparent"
+              className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/10 to-transparent pointer-events-none"
               initial={{ y: "-100%" }}
               animate={{ y: isHovered ? "100%" : "-100%" }}
               transition={{ duration: 1.5, repeat: isHovered ? Infinity : 0 }}
@@ -132,7 +154,7 @@ export function ProductCard({
               {config.label}
             </div>
 
-            {/* Fit Badge (Hidden if on top of wishlist or moved) */}
+            {/* Fit Badge */}
             <div className="absolute bottom-3 left-3 px-2 py-1 bg-background/80 border border-border rounded-sm text-[10px] font-display tracking-wider text-muted-foreground z-20">
               {safeFit}
             </div>
@@ -172,6 +194,21 @@ export function ProductCard({
                 {stock > 0 ? "DROP READY" : "DROP LOOTED"}
               </span>
             </div>
+
+            {/* Image Dots Indicator (Only if multiple images) */}
+            {isHovered && images.length > 1 && (
+              <div className="flex justify-center gap-1 mt-2">
+                {images.map((_, idx) => (
+                  <div
+                    key={idx}
+                    className={cn(
+                      "w-1 h-1 rounded-full transition-colors",
+                      idx === currentImageIndex ? "bg-primary" : "bg-primary/20"
+                    )}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Corner Accent */}

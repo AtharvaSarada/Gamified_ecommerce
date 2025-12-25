@@ -17,7 +17,7 @@ const fetchAllProducts = async () => {
             id: p.id,
             name: p.name,
             price: p.base_price,
-            image: p.images?.[0] || "",
+            images: p.images || [],
             rarity: p.rarity as Rarity,
             stock: p.product_variants?.reduce((acc: number, v: any) => acc + (v.stock_quantity || 0), 0) || 0,
             fit: p.category as "regular" | "oversized",

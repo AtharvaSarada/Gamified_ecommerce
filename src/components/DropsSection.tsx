@@ -12,7 +12,7 @@ interface Product {
   id: string;
   name: string;
   price: number;
-  image: string;
+  images: string[];
   rarity: Rarity;
   stock: number;
   fit: "regular" | "oversized";
@@ -29,7 +29,7 @@ const fetchDrops = async (): Promise<Product[]> => {
         id: p.id,
         name: p.name,
         price: p.base_price,
-        image: p.images?.[0] || "",
+        images: p.images || [],
         rarity: p.rarity as Rarity,
         stock: totalStock,
         fit: p.category as "regular" | "oversized",

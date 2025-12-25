@@ -4,7 +4,7 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { useQuery } from "@tanstack/react-query";
 import { supabase, directFetchProducts } from "@/lib/supabase";
-import { Loader2, ArrowLeft, ShieldCheck, Zap, Info, Plus, Minus, ShoppingCart } from "lucide-react";
+import { Loader2, ArrowLeft, ShieldCheck, Zap, Info, Plus, Minus, ShoppingCart, X, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn, formatPrice } from "@/lib/utils";
 import { useCart } from "@/contexts/CartContext";
@@ -26,6 +26,13 @@ export function ProductDetailsPage() {
     const { addItem } = useCart();
     const [selectedSize, setSelectedSize] = useState<string | null>(null);
     const [quantity, setQuantity] = useState(1);
+    const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+    const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+
+    // Reset image selection when product changes
+    React.useEffect(() => {
+        setSelectedImageIndex(0);
+    }, [id]);
 
     const { data: product, isLoading, error } = useQuery({
         queryKey: ["product", id],
@@ -78,6 +85,42 @@ export function ProductDetailsPage() {
         <div className="min-h-screen bg-background text-foreground flex flex-col">
             <Navbar />
 
+            {/* Lightbox Overlay */}
+            {isLightboxOpen && (
+                <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+                    <button
+                        onClick={() => setIsLightboxOpen(false)}
+                        className="absolute top-4 right-4 p-2 text-white/50 hover:text-white transition-colors"
+                    >
+                        <X className="w-8 h-8" />
+                    </button>
+
+                    <div className="w-full max-w-5xl max-h-[90vh] relative flex items-center justify-center">
+                        <img
+                            src={p.images?.[selectedImageIndex] || p.images?.[0]}
+                            alt={p.name}
+                            className="max-w-full max-h-[90vh] object-contain"
+                        />
+
+                        {/* Lightbox Navigation (if multiple images) */}
+                        {p.images && p.images.length > 1 && (
+                            <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
+                                {p.images.map((_: any, idx: number) => (
+                                    <button
+                                        key={idx}
+                                        onClick={(e) => { e.stopPropagation(); setSelectedImageIndex(idx); }}
+                                        className={cn(
+                                            "w-2 h-2 rounded-full transition-all",
+                                            selectedImageIndex === idx ? "bg-primary scale-125" : "bg-white/30 hover:bg-white/50"
+                                        )}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             <main className="flex-1 pt-24 pb-12">
                 <div className="container mx-auto px-4">
                     <Button
@@ -92,12 +135,19 @@ export function ProductDetailsPage() {
                     <div className="grid lg:grid-cols-2 gap-12">
                         {/* Visual Section */}
                         <div className="space-y-6">
-                            <div className="relative aspect-square bg-card border-2 border-primary/20 angular-card overflow-hidden group">
+                            {/* Main Image Stage */}
+                            <div className="group relative aspect-square bg-card border-2 border-primary/20 angular-card overflow-hidden">
                                 <img
-                                    src={p.images?.[0]}
+                                    src={p.images?.[selectedImageIndex] || p.images?.[0]}
                                     alt={p.name}
-                                    className="w-full h-full object-cover"
+                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 cursor-zoom-in"
+                                    onClick={() => setIsLightboxOpen(true)}
                                 />
+
+                                {/* Zoom Hint */}
+                                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 p-2 rounded backdrop-blur-sm pointer-events-none z-20">
+                                    <Maximize2 className="w-4 h-4 text-white" />
+                                </div>
 
                                 {/* Rarity Overlay */}
                                 <div className={cn(
@@ -109,6 +159,29 @@ export function ProductDetailsPage() {
                                     {p.rarity}
                                 </div>
                             </div>
+
+                            {/* Thumbnails Gallery */}
+                            {p.images && p.images.length > 1 && (
+                                <div className="grid grid-cols-4 gap-4">
+                                    {p.images.map((img: string, idx: number) => (
+                                        <button
+                                            key={idx}
+                                            onClick={() => setSelectedImageIndex(idx)}
+                                            className={cn(
+                                                "aspect-square overflow-hidden border-2 transition-all angular-card relative group",
+                                                selectedImageIndex === idx
+                                                    ? "border-primary opacity-100 ring-2 ring-primary/20"
+                                                    : "border-transparent opacity-60 hover:opacity-100 hover:border-primary/50"
+                                            )}
+                                        >
+                                            <img src={img} alt={`View ${idx + 1}`} className="w-full h-full object-cover" />
+                                            {selectedImageIndex === idx && (
+                                                <div className="absolute inset-0 bg-primary/10" />
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
 
                             {/* Specs Grid */}
                             <div className="grid grid-cols-2 gap-4">
