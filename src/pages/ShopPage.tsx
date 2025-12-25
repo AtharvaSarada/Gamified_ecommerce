@@ -28,9 +28,37 @@ const fetchAllProducts = async () => {
     }
 };
 
+import { useSearchParams } from "react-router-dom";
+
+// ... existing imports
+
 export function ShopPage() {
-    const [activeCategory, setActiveCategory] = useState<string>("all");
+    const [searchParams, setSearchParams] = useSearchParams();
+    const initialCategory = searchParams.get("category");
+    const [activeCategory, setActiveCategory] = useState<string>(
+        (initialCategory === "regular" || initialCategory === "oversized") ? initialCategory : "all"
+    );
     const [activeRarity, setActiveRarity] = useState<string>("all");
+
+    // Sync state with URL if it changes (e.g. back button)
+    React.useEffect(() => {
+        const category = searchParams.get("category");
+        if (category && (category === "regular" || category === "oversized")) {
+            setActiveCategory(category);
+        } else if (!category) {
+            setActiveCategory("all");
+        }
+    }, [searchParams]);
+
+    const handleCategoryChange = (cat: string) => {
+        setActiveCategory(cat);
+        if (cat === "all") {
+            searchParams.delete("category");
+        } else {
+            searchParams.set("category", cat);
+        }
+        setSearchParams(searchParams);
+    };
 
     const { data: products, isLoading, error } = useQuery({
         queryKey: ["all-products"],
@@ -80,7 +108,7 @@ export function ShopPage() {
                                             {["all", "regular", "oversized"].map((cat) => (
                                                 <button
                                                     key={cat}
-                                                    onClick={() => setActiveCategory(cat)}
+                                                    onClick={() => handleCategoryChange(cat)}
                                                     className={cn(
                                                         "text-left px-3 py-2 text-xs font-display font-bold tracking-widest uppercase transition-all border",
                                                         activeCategory === cat

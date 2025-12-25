@@ -1,33 +1,61 @@
 import { motion } from "framer-motion";
 import { ChevronRight, Shirt, Package } from "lucide-react";
 
-const categories = [
-  {
-    id: "regular",
-    title: "REGULAR FIT",
-    subtitle: "Standard Issue",
-    description: "Classic cuts for everyday missions. Comfortable, versatile, and ready for action.",
-    icon: Shirt,
-    color: "primary",
-    stats: { items: 24, soldOut: 8 },
-  },
-  {
-    id: "oversized",
-    title: "OVERSIZED",
-    subtitle: "Heavy Armor",
-    description: "Bold silhouettes for maximum impact. Make a statement with every appearance.",
-    icon: Package,
-    color: "secondary",
-    stats: { items: 18, soldOut: 12 },
-  },
-];
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
 
 export function CategorySection() {
+  const [counts, setCounts] = useState({ regular: 0, oversized: 0 });
+
+  useEffect(() => {
+    const fetchCounts = async () => {
+      const { count: regularCount } = await supabase
+        .from('products') // Assuming 'products' is the table name
+        .select('*', { count: 'exact', head: true })
+        .eq('category', 'regular')
+        .eq('is_active', true)
+        .is('deleted_at', null);
+
+      const { count: oversizedCount } = await supabase
+        .from('products')
+        .select('*', { count: 'exact', head: true })
+        .eq('category', 'oversized')
+        .eq('is_active', true)
+        .is('deleted_at', null);
+
+      setCounts({ regular: regularCount || 0, oversized: oversizedCount || 0 });
+    };
+    fetchCounts();
+  }, []);
+
+  const categories = [
+    {
+      id: "regular",
+      title: "REGULAR FIT",
+      subtitle: "Standard Issue",
+      description: "Classic cuts for everyday missions. Comfortable, versatile, and ready for action.",
+      icon: Shirt,
+      color: "primary",
+      href: "/shop?category=regular",
+      count: counts.regular,
+    },
+    {
+      id: "oversized",
+      title: "OVERSIZED",
+      subtitle: "Heavy Armor",
+      description: "Bold silhouettes for maximum impact. Make a statement with every appearance.",
+      icon: Package,
+      color: "secondary",
+      href: "/shop?category=oversized",
+      count: counts.oversized,
+    },
+  ];
   return (
     <section id="collection" className="py-20 relative overflow-hidden">
       {/* Background Pattern */}
       <div className="absolute inset-0">
-        <div 
+        <div
           className="absolute inset-0 opacity-10"
           style={{
             backgroundImage: `radial-gradient(circle at 2px 2px, hsl(var(--primary)) 1px, transparent 0)`,
@@ -55,23 +83,25 @@ export function CategorySection() {
         {/* Category Cards */}
         <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
           {categories.map((category, index) => (
-            <motion.a
+            <Link
               key={category.id}
-              href={`#${category.id}`}
-              initial={{ opacity: 0, x: index === 0 ? -50 : 50 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: index * 0.2 }}
-              className="group relative"
+              to={category.href}
+              className="group relative block"
             >
-              <div className={`
+              <motion.div
+                initial={{ opacity: 0, x: index === 0 ? -50 : 50 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.6, delay: index * 0.2 }}
+                className={`
                 relative bg-card border-2 p-8 transition-all duration-500
-                angular-card overflow-hidden
-                ${category.color === 'primary' 
-                  ? 'border-primary/30 hover:border-primary hover:shadow-[0_0_30px_hsl(var(--primary)/0.3)]' 
-                  : 'border-secondary/30 hover:border-secondary hover:shadow-[0_0_30px_hsl(var(--secondary)/0.3)]'
-                }
-              `}>
+                angular-card overflow-hidden h-full
+                ${category.color === 'primary'
+                    ? 'border-primary/30 hover:border-primary hover:shadow-[0_0_30px_hsl(var(--primary)/0.3)]'
+                    : 'border-secondary/30 hover:border-secondary hover:shadow-[0_0_30px_hsl(var(--secondary)/0.3)]'
+                  }
+              `}
+              >
                 {/* Background Glow */}
                 <div className={`
                   absolute -inset-1 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-xl
@@ -83,8 +113,8 @@ export function CategorySection() {
                   {/* Icon */}
                   <div className={`
                     w-16 h-16 mb-6 flex items-center justify-center rounded border-2
-                    ${category.color === 'primary' 
-                      ? 'border-primary/50 bg-primary/10' 
+                    ${category.color === 'primary'
+                      ? 'border-primary/50 bg-primary/10'
                       : 'border-secondary/50 bg-secondary/10'
                     }
                   `}>
@@ -108,15 +138,9 @@ export function CategorySection() {
                   <div className="flex gap-6 mb-6">
                     <div>
                       <span className={`text-2xl font-display font-bold ${category.color === 'primary' ? 'text-primary' : 'text-secondary'}`}>
-                        {category.stats.items}
+                        {category.count}
                       </span>
                       <span className="text-xs text-muted-foreground block">ITEMS</span>
-                    </div>
-                    <div>
-                      <span className="text-2xl font-display font-bold text-accent">
-                        {category.stats.soldOut}
-                      </span>
-                      <span className="text-xs text-muted-foreground block">SOLD OUT</span>
                     </div>
                   </div>
 
@@ -132,8 +156,8 @@ export function CategorySection() {
                 {/* Corner Accents */}
                 <div className={`absolute top-0 right-0 w-20 h-20 border-r-2 border-t-2 opacity-30 ${category.color === 'primary' ? 'border-primary' : 'border-secondary'}`} />
                 <div className={`absolute bottom-0 left-0 w-20 h-20 border-l-2 border-b-2 opacity-30 ${category.color === 'primary' ? 'border-primary' : 'border-secondary'}`} />
-              </div>
-            </motion.a>
+              </motion.div>
+            </Link>
           ))}
         </div>
       </div>
