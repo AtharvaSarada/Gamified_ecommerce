@@ -37,36 +37,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
-    const fetchProfile = async (userId: string, retries = 3) => {
+    const fetchProfile = async (userId: string, retries = 3, token?: string) => {
         for (let i = 0; i < retries; i++) {
             try {
                 console.log(`Auth: Fetching profile (Attempt ${i + 1}/${retries})...`);
-                const { data, error } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', userId)
-                    .single();
+
+                // We'll race the SDK call against a timeout
+                const sdkCall = supabase.from('profiles').select('*').eq('id', userId).single();
+                const timeoutCall = new Promise((_, reject) => setTimeout(() => reject(new Error('SDK_TIMEOUT')), 5000));
+
+                const result = await Promise.race([sdkCall, timeoutCall]) as any;
+                const { data, error } = result;
 
                 if (error) {
-                    if (error.code === 'PGRST116') { // Not found
-                        console.log('Auth: Profile not found for user', userId);
-                        return null;
-                    }
+                    if (error.code === 'PGRST116') return null;
                     throw error;
                 }
 
                 if (data) {
-                    console.log('Auth: Profile successfully fetched for', userId);
+                    console.log('Auth: Profile successfully fetched via SDK');
                     return {
                         ...(data as any),
                         level: (data as any).level || 1,
                         xp: (data as any).xp || 0
                     } as Profile;
                 }
-            } catch (error) {
-                console.error(`Auth: Profile fetch error (Attempt ${i + 1}):`, error);
+            } catch (error: any) {
+                console.warn(`Auth: Profile fetch error (Attempt ${i + 1}):`, error.message || error);
+
+                // Fallback to direct REST call if SDK hangs or fails
+                if (token || (await supabase.auth.getSession()).data.session?.access_token) {
+                    try {
+                        console.log('Auth: Attempting direct fetch fallback...');
+                        const activeToken = token || (await supabase.auth.getSession()).data.session?.access_token;
+                        const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=*`;
+                        const res = await fetch(url, {
+                            headers: {
+                                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                                'Authorization': `Bearer ${activeToken}`,
+                                'Accept': 'application/vnd.pgrst.object+json'
+                            }
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            console.log('Auth: Profile successfully fetched via direct REST');
+                            return {
+                                ...data,
+                                level: data.level || 1,
+                                xp: data.xp || 0
+                            } as Profile;
+                        }
+                    } catch (err: any) {
+                        console.error('Auth: Direct fetch fallback failed:', err.message);
+                    }
+                }
+
                 if (i < retries - 1) {
-                    await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+                    await new Promise(r => setTimeout(r, 1000 * (i + 1)));
                 }
             }
         }
@@ -102,10 +129,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     }
                 }
 
-                const profileData = await fetchProfile(session.user.id);
+                const profileData = await fetchProfile(session.user.id, 3, session.access_token);
                 if (mounted) {
                     setProfile(profileData);
-                    saveProfileToCache(profileData);
+                    if (profileData) saveProfileToCache(profileData);
                     setLoading(false);
                 }
             } else {
@@ -119,10 +146,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // 1. Initial manual check
         const initialize = async () => {
             try {
-                const { data: { session } } = await supabase.auth.getSession();
+                // Initialize should also have a timeout
+                const sessionPromise = supabase.auth.getSession();
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('GetSessionTimeout')), 3000));
+
+                const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any;
                 await handleStateChange('INITIAL_CHECK', session);
             } catch (err) {
-                console.error('Auth: Initial session check failed:', err);
+                console.error('Auth: Initial session check timed out or failed:', err);
                 if (mounted) setLoading(false);
             }
         };
