@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 
 export const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { user, profile, loading } = useAuth();
+    const { user, isAdmin, loading } = useAuth();
 
     if (loading) {
         return (
@@ -17,7 +17,7 @@ export const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }
         return <Navigate to="/login" replace />;
     }
 
-    if (!profile?.is_admin) {
+    if (!isAdmin) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
                 <div className="text-center">

@@ -11,6 +11,7 @@ interface AuthContextType {
     user: User | null;
     profile: Profile | null;
     loading: boolean;
+    isAdmin: boolean;
     signUp: (email: string, password: string, fullName: string) => Promise<void>;
     signIn: (email: string, password: string) => Promise<void>;
     signInWithGoogle: () => Promise<void>;
@@ -236,9 +237,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
+    const isAdmin = profile?.is_admin === true;
+
     return (
         <AuthContext.Provider value={{
-            user, profile, loading,
+            user, profile, loading, isAdmin,
             signUp, signIn, signInWithGoogle, signInWithDiscord,
             signOut, resetPassword, updatePassword, deleteAccount
         }}>
