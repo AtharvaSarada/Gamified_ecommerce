@@ -25,32 +25,9 @@ export const AdminProductsTab: React.FC = () => {
         try {
             console.log('Admin: Fetching products...');
 
-            // 1. Try SDK with Timeout
-            const sdkPromise = supabase
-                .from('products')
-                .select(`
-                    *,
-                    variants:product_variants(*)
-                `)
-                .order('created_at', { ascending: false });
-
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('SDK_FETCH_TIMEOUT')), 5000));
-
-            let data;
-            try {
-                const result = await Promise.race([sdkPromise, timeoutPromise]) as any;
-                data = result.data;
-                if (result.error) throw result.error;
-                console.log('Admin: Products fetched via SDK');
-            } catch (sdkErr: any) {
-                console.warn('Admin: SDK fetch failed or timed out, trying direct REST fallback...', sdkErr.message);
-
-                // 2. Fallback to Direct REST Fetch
-                // Use token directly from AuthContext to avoid deadlocked getSession()
-                if (!accessToken) {
-                    throw new Error('No access token available for fallback fetch');
-                }
-
+            // Priority: Direct REST Fetch
+            // We bypass the SDK select() entirely to avoid the 5s timeout on every load
+            if (accessToken) {
                 const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/products?select=*,variants:product_variants(*)&order=created_at.desc`;
                 const response = await fetch(url, {
                     headers: {
@@ -60,18 +37,37 @@ export const AdminProductsTab: React.FC = () => {
                 });
 
                 if (!response.ok) throw new Error(`Direct fetch failed: ${response.statusText}`);
-                data = await response.json();
-                console.log('Admin: Products fetched via direct REST fallback');
+                const data = await response.json();
+
+                // Transform to include stock summary
+                const transformedWithStock = (data || []).map((p: any) => ({
+                    ...p,
+                    total_stock: p.variants?.reduce((sum: number, v: any) => sum + (v.stock_quantity || 0), 0) || 0,
+                    is_in_stock: p.variants?.some((v: any) => (v.stock_quantity || 0) > 0),
+                }));
+
+                setProducts(transformedWithStock);
+                console.log('Admin: Products fetched via direct REST');
+            } else {
+                // Fallback to SDK if no token (rare)
+                console.warn('Admin: No access token, using SDK for fetch...');
+                const { data, error } = await supabase
+                    .from('products')
+                    .select(`
+                        *,
+                        variants:product_variants(*)
+                    `)
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+
+                const transformedWithStock = (data || []).map((p: any) => ({
+                    ...p,
+                    total_stock: p.variants?.reduce((sum: number, v: any) => sum + (v.stock_quantity || 0), 0) || 0,
+                    is_in_stock: p.variants?.some((v: any) => (v.stock_quantity || 0) > 0),
+                }));
+                setProducts(transformedWithStock);
             }
-
-            // Transform to include stock summary
-            const transformedWithStock = (data || []).map((p: any) => ({
-                ...p,
-                total_stock: p.variants?.reduce((sum: number, v: any) => sum + (v.stock_quantity || 0), 0) || 0,
-                is_in_stock: p.variants?.some((v: any) => (v.stock_quantity || 0) > 0),
-            }));
-
-            setProducts(transformedWithStock);
         } catch (error: any) {
             console.error('Error fetching products:', error);
             toast.error(error.message || 'Failed to load products');
@@ -86,11 +82,27 @@ export const AdminProductsTab: React.FC = () => {
 
     const handleRestoreAllStock = async () => {
         try {
-            const { data, error } = await (supabase.rpc as any)('admin_restore_all_stock', {
-                p_default_stock: 50
-            });
-
-            if (error) throw error;
+            let data;
+            if (accessToken) {
+                const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/admin_restore_all_stock`;
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ p_default_stock: 50 })
+                });
+                if (!response.ok) throw new Error('Failed to restore');
+                data = await response.json();
+            } else {
+                const { data: rpcData, error } = await (supabase.rpc as any)('admin_restore_all_stock', {
+                    p_default_stock: 50
+                });
+                if (error) throw error;
+                data = rpcData;
+            }
 
             toast.success(`All systems online: ${data} variants restored to max capacity.`);
             fetchProducts();
@@ -104,11 +116,25 @@ export const AdminProductsTab: React.FC = () => {
         if (!confirm('Are you sure you want to delete this product?')) return;
 
         try {
-            const { error } = await (supabase.rpc as any)('admin_delete_product', {
-                p_product_id: id
-            });
+            if (accessToken) {
+                const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/admin_delete_product`;
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ p_product_id: id })
+                });
+                if (!response.ok) throw new Error('Failed to delete');
+            } else {
+                const { error } = await (supabase.rpc as any)('admin_delete_product', {
+                    p_product_id: id
+                });
+                if (error) throw error;
+            }
 
-            if (error) throw error;
             toast.success('Product removed from database');
             fetchProducts();
         } catch (error: any) {
