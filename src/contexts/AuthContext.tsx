@@ -57,7 +57,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 if (data) {
                     console.log('Auth: Profile successfully fetched for', userId);
                     return {
-                        ...data,
+                        ...(data as any),
                         level: (data as any).level || 1,
                         xp: (data as any).xp || 0
                     } as Profile;
@@ -83,14 +83,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             if (session?.user) {
                 setUser(session.user);
+
+                // If we don't have a profile yet, try to load from cache first for instant UI
+                if (!profile) {
+                    const cached = localStorage.getItem('ggg_profile_cache');
+                    if (cached) {
+                        try {
+                            const p = JSON.parse(cached);
+                            if (p.id === session.user.id) {
+                                console.log('Auth: Loaded profile from cache');
+                                setProfile(p);
+                                // Don't stop loading yet, we want to fetch fresh data
+                            }
+                        } catch (e) {
+                            console.error('Auth: Cache parse error', e);
+                        }
+                    }
+                }
+
                 const profileData = await fetchProfile(session.user.id);
                 if (mounted) {
                     setProfile(profileData);
+                    saveProfileToCache(profileData);
                     setLoading(false);
                 }
             } else {
                 setUser(null);
                 setProfile(null);
+                saveProfileToCache(null);
                 setLoading(false);
             }
         };
@@ -170,6 +190,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const signOut = async () => {
         await supabase.auth.signOut();
+        saveProfileToCache(null);
         toast.info('Signed out');
     };
 
