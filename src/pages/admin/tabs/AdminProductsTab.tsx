@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import { Product, ProductWithStock } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +12,7 @@ import { toast } from 'sonner';
 import { ProductFormDialog } from '@/pages/admin/components/ProductFormDialog';
 
 export const AdminProductsTab: React.FC = () => {
+    const { accessToken } = useAuth();
     const [products, setProducts] = useState<ProductWithStock[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -43,14 +45,16 @@ export const AdminProductsTab: React.FC = () => {
                 console.warn('Admin: SDK fetch failed or timed out, trying direct REST fallback...', sdkErr.message);
 
                 // 2. Fallback to Direct REST Fetch
-                const { data: sessionData } = await supabase.auth.getSession();
-                const token = sessionData.session?.access_token;
+                // Use token directly from AuthContext to avoid deadlocked getSession()
+                if (!accessToken) {
+                    throw new Error('No access token available for fallback fetch');
+                }
 
                 const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/products?select=*,variants:product_variants(*)&order=created_at.desc`;
                 const response = await fetch(url, {
                     headers: {
                         'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-                        'Authorization': `Bearer ${token}`,
+                        'Authorization': `Bearer ${accessToken}`,
                     }
                 });
 

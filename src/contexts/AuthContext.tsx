@@ -12,6 +12,7 @@ interface AuthContextType {
     profile: Profile | null;
     loading: boolean;
     isAdmin: boolean;
+    accessToken: string | null;
     signUp: (email: string, password: string, fullName: string) => Promise<void>;
     signIn: (email: string, password: string) => Promise<void>;
     signInWithGoogle: () => Promise<void>;
@@ -28,6 +29,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [user, setUser] = useState<User | null>(null);
     const [profile, setProfile] = useState<Profile | null>(null);
     const [loading, setLoading] = useState(true);
+    const [accessToken, setAccessToken] = useState<string | null>(null);
 
     const saveProfileToCache = (p: Profile | null) => {
         if (p) {
@@ -111,6 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             if (session?.user) {
                 setUser(session.user);
+                setAccessToken(session.access_token);
 
                 // If we don't have a profile yet, try to load from cache first for instant UI
                 if (!profile) {
@@ -138,6 +141,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             } else {
                 setUser(null);
                 setProfile(null);
+                setAccessToken(null);
                 saveProfileToCache(null);
                 setLoading(false);
             }
@@ -221,6 +225,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                                     user: parsed.user,
                                     access_token: accessToken
                                 });
+                                setAccessToken(accessToken);
                                 return; // Success
                             }
                         }
@@ -347,7 +352,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return (
         <AuthContext.Provider value={{
-            user, profile, loading, isAdmin,
+            user, profile, loading, isAdmin, accessToken,
             signUp, signIn, signInWithGoogle, signInWithDiscord,
             signOut, resetPassword, updatePassword, deleteAccount
         }}>
