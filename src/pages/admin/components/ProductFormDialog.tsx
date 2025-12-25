@@ -136,22 +136,19 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                 console.log('Product details updated, proceeding to stock variants update...');
 
                 // Update Stocks via RPC for each variant
-                if (productToEdit?.variants) {
-                    for (const vData of data.variants) {
-                        const existing = productToEdit.variants.find(v => v.size === vData.size);
-                        if (existing) {
-                            console.log(`Updating stock for ${vData.size} (ID: ${existing.id}) to ${vData.stock_quantity}`);
-                            const { error: stockError } = await supabase.rpc('admin_update_product_stock', {
-                                p_variant_id: existing.id,
-                                p_new_stock: Number(vData.stock_quantity),
-                                p_low_stock_threshold: Number(vData.low_stock_threshold)
-                            });
+                // We use an UPSERT pattern so it works even if variants are missing
+                for (const vData of data.variants) {
+                    console.log(`Upserting stock for ${vData.size} (Product: ${productId}) to ${vData.stock_quantity}`);
+                    const { error: stockError } = await supabase.rpc('admin_update_product_stock', {
+                        p_product_id: productId,
+                        p_size: vData.size,
+                        p_new_stock: Number(vData.stock_quantity),
+                        p_low_stock_threshold: Number(vData.low_stock_threshold)
+                    });
 
-                            if (stockError) {
-                                console.error(`Failed to update stock for ${vData.size}:`, stockError);
-                                throw new Error(`Stock update failed for ${vData.size}: ${stockError.message}`);
-                            }
-                        }
+                    if (stockError) {
+                        console.error(`Failed to update stock for ${vData.size}:`, stockError);
+                        throw new Error(`Stock update failed for ${vData.size}: ${stockError.message}`);
                     }
                 }
 
