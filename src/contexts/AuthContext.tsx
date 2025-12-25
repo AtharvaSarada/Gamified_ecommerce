@@ -146,14 +146,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // 1. Initial manual check
         const initialize = async () => {
             try {
+                console.log('Auth: Running initial session sync...');
                 // Initialize should also have a timeout
                 const sessionPromise = supabase.auth.getSession();
                 const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('GetSessionTimeout')), 3000));
 
-                const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any;
+                const result = await Promise.race([sessionPromise, timeoutPromise]) as any;
+                const session = result?.data?.session || null;
+
+                if (!session) {
+                    console.warn('Auth: No session found in initial check');
+                }
+
                 await handleStateChange('INITIAL_CHECK', session);
-            } catch (err) {
-                console.error('Auth: Initial session check timed out or failed:', err);
+            } catch (err: any) {
+                console.error('Auth: Initial session check timed out or failed:', err.message);
+
+                // CRITICAL FALLBACK: If getSession hangs, try manual recovery from localStorage
+                // Supabase uses 'sb-[project-id]-auth-token'
+                try {
+                    console.log('Auth: Attempting manual session recovery from storage...');
+                    const keys = Object.keys(localStorage);
+                    const authKey = keys.find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+
+                    if (authKey) {
+                        const rawData = localStorage.getItem(authKey);
+                        if (rawData) {
+                            const parsed = JSON.parse(rawData);
+                            if (parsed.user && parsed.access_token) {
+                                console.log('Auth: Manually recovered user from storage:', parsed.user.id);
+                                // Fake a session object for handleStateChange
+                                await handleStateChange('MANUAL_RECOVERY', {
+                                    user: parsed.user,
+                                    access_token: parsed.access_token
+                                });
+                                return; // Success
+                            }
+                        }
+                    }
+                } catch (recoveryErr) {
+                    console.error('Auth: Manual recovery failed:', recoveryErr);
+                }
+
                 if (mounted) setLoading(false);
             }
         };

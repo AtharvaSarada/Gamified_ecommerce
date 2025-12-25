@@ -20,7 +20,10 @@ export const AdminProductsTab: React.FC = () => {
     const fetchProducts = async () => {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            console.log('Admin: Fetching products...');
+
+            // 1. Try SDK with Timeout
+            const sdkPromise = supabase
                 .from('products')
                 .select(`
                     *,
@@ -28,7 +31,33 @@ export const AdminProductsTab: React.FC = () => {
                 `)
                 .order('created_at', { ascending: false });
 
-            if (error) throw error;
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('SDK_FETCH_TIMEOUT')), 5000));
+
+            let data;
+            try {
+                const result = await Promise.race([sdkPromise, timeoutPromise]) as any;
+                data = result.data;
+                if (result.error) throw result.error;
+                console.log('Admin: Products fetched via SDK');
+            } catch (sdkErr: any) {
+                console.warn('Admin: SDK fetch failed or timed out, trying direct REST fallback...', sdkErr.message);
+
+                // 2. Fallback to Direct REST Fetch
+                const { data: sessionData } = await supabase.auth.getSession();
+                const token = sessionData.session?.access_token;
+
+                const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/products?select=*,variants:product_variants(*)&order=created_at.desc`;
+                const response = await fetch(url, {
+                    headers: {
+                        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${token}`,
+                    }
+                });
+
+                if (!response.ok) throw new Error(`Direct fetch failed: ${response.statusText}`);
+                data = await response.json();
+                console.log('Admin: Products fetched via direct REST fallback');
+            }
 
             // Transform to include stock summary
             const transformedWithStock = (data || []).map((p: any) => ({
@@ -38,9 +67,9 @@ export const AdminProductsTab: React.FC = () => {
             }));
 
             setProducts(transformedWithStock);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error fetching products:', error);
-            toast.error('Failed to load products');
+            toast.error(error.message || 'Failed to load products');
         } finally {
             setLoading(false);
         }
@@ -52,7 +81,7 @@ export const AdminProductsTab: React.FC = () => {
 
     const handleRestoreAllStock = async () => {
         try {
-            const { data, error } = await supabase.rpc('admin_restore_all_stock', {
+            const { data, error } = await (supabase.rpc as any)('admin_restore_all_stock', {
                 p_default_stock: 50
             });
 
@@ -70,7 +99,7 @@ export const AdminProductsTab: React.FC = () => {
         if (!confirm('Are you sure you want to delete this product?')) return;
 
         try {
-            const { error } = await supabase.rpc('admin_delete_product', {
+            const { error } = await (supabase.rpc as any)('admin_delete_product', {
                 p_product_id: id
             });
 
@@ -85,9 +114,9 @@ export const AdminProductsTab: React.FC = () => {
 
     const toggleStatus = async (id: string, currentStatus: boolean) => {
         try {
-            const { error } = await supabase
-                .from('products')
-                .update({ is_active: !currentStatus } as any)
+            const { error } = await (supabase
+                .from('products') as any)
+                .update({ is_active: !currentStatus })
                 .eq('id', id);
 
             if (error) throw error;
