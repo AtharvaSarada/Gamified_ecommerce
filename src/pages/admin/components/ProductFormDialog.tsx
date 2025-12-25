@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Tab } from '@headlessui/react'; // Assuming headless ui or using standard tabs
 import { Product, ProductVariant, ShirtSize } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -177,7 +176,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                     p_discount_percentage: Number(data.discount_percentage),
                     p_images: finalImageUrls,
                     p_is_active: data.is_active
-                });
+                } as any);
 
                 if (updateError) throw updateError;
 
@@ -192,7 +191,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                         p_size: vData.size,
                         p_new_stock: Number(vData.stock_quantity),
                         p_low_stock_threshold: Number(vData.low_stock_threshold)
-                    });
+                    } as any);
 
                     if (stockError) {
                         console.error(`Failed to update stock for ${vData.size}:`, stockError);
@@ -220,7 +219,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                     p_discount_percentage: Number(data.discount_percentage),
                     p_images: finalImageUrls,
                     p_variants: variantsJson
-                });
+                } as any);
 
                 if (createError) throw createError;
                 toast.success('Product created successfully');
@@ -240,8 +239,8 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col bg-background/95 backdrop-blur-xl border-white/10">
-                <DialogHeader>
+            <DialogContent className="max-w-4xl max-h-[85vh] h-[85vh] flex flex-col bg-background/95 backdrop-blur-xl border-white/10 p-0">
+                <DialogHeader className="px-6 py-4 border-b border-white/10 shrink-0">
                     <DialogTitle className="font-display tracking-wider text-xl">
                         {isEditing ? 'EDIT DATA CUBE' : 'FORGE NEW ARTIFACT'}
                     </DialogTitle>
@@ -251,9 +250,9 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                 </DialogHeader>
 
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col min-h-0">
-                        <ScrollArea className="flex-1 pr-4">
-                            <div className="space-y-6 p-1">
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                        <ScrollArea className="flex-1 h-full">
+                            <div className="space-y-6 p-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     {/* Basic Info */}
                                     <div className="space-y-4">
@@ -421,7 +420,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                             </div>
                         </ScrollArea>
 
-                        <DialogFooter className="pt-6 mt-6 border-t border-white/10">
+                        <DialogFooter className="px-6 py-4 border-t border-white/10 shrink-0 bg-background/95 backdrop-blur-xl">
                             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
                                 CANCEL
                             </Button>
