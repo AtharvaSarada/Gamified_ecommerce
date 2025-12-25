@@ -31,44 +31,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const fetchProfile = async (userId: string, retries = 3) => {
         for (let i = 0; i < retries; i++) {
             try {
-                const profilePromise = supabase
+                console.log(`Auth: Fetching profile (Attempt ${i + 1}/${retries})...`);
+                const { data, error } = await supabase
                     .from('profiles')
                     .select('*')
                     .eq('id', userId)
                     .single();
 
-                const timeoutPromise = new Promise((resolve) =>
-                    setTimeout(() => resolve({ error: { message: 'timeout' } }), 15000)
-                );
-
-                const { data, error } = await Promise.race([profilePromise, timeoutPromise]) as any;
-
                 if (error) {
-                    if (error.message === 'timeout') {
-                        console.warn(`Auth: Profile fetch timed out (Attempt ${i + 1}/${retries})`);
-                        if (i === retries - 1) return null;
-                        continue;
-                    } else if (error.code === 'PGRST116') { // Not found
+                    if (error.code === 'PGRST116') { // Not found
                         console.log('Auth: Profile not found for user', userId);
                         return null;
                     }
                     console.error('Auth: Profile fetch error:', error);
-                    return null;
-                }
-
-                if (data) {
+                    // On error, we retry unless it's a "not found"
+                } else if (data) {
+                    const profileData = data as any;
+                    console.log('Auth: Profile successfully fetched');
                     return {
-                        ...data,
-                        level: data.level || 1,
-                        xp: data.xp || 0
+                        ...profileData,
+                        level: profileData.level || 1,
+                        xp: profileData.xp || 0
                     } as Profile;
                 }
             } catch (error) {
                 console.error('Auth: Profile fetch exception:', error);
-                if (i === retries - 1) return null;
             }
-            // Wait before retry
-            await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+
+            console.warn(`Auth: Profile fetch failed or delayed, retrying in ${2 * (i + 1)}s...`);
+            await new Promise(r => setTimeout(r, 2000 * (i + 1)));
         }
         return null;
     };
