@@ -25,8 +25,20 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
-    const [profile, setProfile] = useState<Profile | null>(null);
+    const [profile, setProfile] = useState<Profile | null>(() => {
+        // Hydrate from localStorage for immediate UI responsiveness
+        const cached = localStorage.getItem('ggg_profile_cache');
+        return cached ? JSON.parse(cached) : null;
+    });
     const [loading, setLoading] = useState(true);
+
+    const saveProfileToCache = (p: Profile | null) => {
+        if (p) {
+            localStorage.setItem('ggg_profile_cache', JSON.stringify(p));
+        } else {
+            localStorage.removeItem('ggg_profile_cache');
+        }
+    };
 
     const fetchProfile = async (userId: string, retries = 3) => {
         for (let i = 0; i < retries; i++) {
@@ -100,12 +112,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
                 if (sessionError?.message === 'timeout') {
                     console.warn('Auth: getSession timed out, falling back to subscription');
-                    // Do NOT return, wait for subscription to potentially handle it or loading to clear
                 } else if (!session?.user) {
                     console.log('Auth: No active session (checked)');
                     if (mounted) {
                         setUser(null);
                         setProfile(null);
+                        saveProfileToCache(null);
                     }
                 } else {
                     // Step 2: Set user
@@ -116,9 +128,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     const profileData = await fetchProfile(session.user.id);
 
                     if (mounted) {
-                        console.log('Auth: Profile loaded', profileData);
-                        console.log('Auth: Is Admin?', profileData?.is_admin);
-                        setProfile(profileData);
+                        if (profileData) {
+                            console.log('Auth: Profile loaded', profileData);
+                            setProfile(profileData);
+                            saveProfileToCache(profileData);
+                        } else {
+                            // If fetch fails but we have a cache, KEEP it. Do NOT set null.
+                            console.warn('Auth: Fresh profile fetch failed, sticking with cache');
+                        }
                     }
                 }
 
@@ -126,7 +143,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 console.error('Auth: Initialization error:', error);
                 if (mounted) {
                     setUser(null);
-                    setProfile(null);
+                    // Don't clear profile cache on generic error to prevent flicker
                 }
             } finally {
                 clearTimeout(timeout); // Clear the failsafe timeout too
@@ -151,15 +168,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                         const profileData = await fetchProfile(session.user.id);
 
                         if (mounted) {
-                            console.log('Auth: Profile updated from event');
-                            console.log('Auth: Is Admin?', profileData?.is_admin);
-                            setProfile(profileData);
+                            if (profileData) {
+                                console.log('Auth: Profile updated from event');
+                                setProfile(profileData);
+                                saveProfileToCache(profileData);
+                            }
                         }
                     } else {
                         console.log('Auth: User signed out or session cleared');
                         if (mounted) {
                             setUser(null);
                             setProfile(null);
+                            saveProfileToCache(null);
                         }
                     }
                 } catch (error) {
