@@ -174,11 +174,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                         if (rawData) {
                             const parsed = JSON.parse(rawData);
                             if (parsed.user && parsed.access_token) {
+                                let accessToken = parsed.access_token;
+
+                                // Check for expiration
+                                // expires_at is usually in seconds (unix timestamp)
+                                if (parsed.expires_at) {
+                                    const now = Math.floor(Date.now() / 1000);
+                                    // If expired or expiring in < 60s
+                                    if (now >= parsed.expires_at - 60) {
+                                        console.warn('Auth: Stored token is expired. Attempting manual refresh...');
+                                        if (parsed.refresh_token) {
+                                            try {
+                                                const refreshUrl = `${import.meta.env.VITE_SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`;
+                                                const refreshRes = await fetch(refreshUrl, {
+                                                    method: 'POST',
+                                                    headers: {
+                                                        'Content-Type': 'application/json',
+                                                        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
+                                                    },
+                                                    body: JSON.stringify({ refresh_token: parsed.refresh_token })
+                                                });
+
+                                                if (refreshRes.ok) {
+                                                    const refreshData = await refreshRes.json();
+                                                    accessToken = refreshData.access_token;
+                                                    console.log('Auth: Token manually refreshed successfully');
+
+                                                    // Update storage to prevent looping
+                                                    parsed.access_token = refreshData.access_token;
+                                                    parsed.refresh_token = refreshData.refresh_token;
+                                                    parsed.expires_at = Math.floor(Date.now() / 1000) + refreshData.expires_in;
+                                                    localStorage.setItem(authKey, JSON.stringify(parsed));
+                                                } else {
+                                                    console.error('Auth: Manual refresh failed', refreshRes.status);
+                                                }
+                                            } catch (refreshErr) {
+                                                console.error('Auth: Refresh network error', refreshErr);
+                                            }
+                                        }
+                                    }
+                                }
+
                                 console.log('Auth: Manually recovered user from storage:', parsed.user.id);
                                 // Fake a session object for handleStateChange
                                 await handleStateChange('MANUAL_RECOVERY', {
                                     user: parsed.user,
-                                    access_token: parsed.access_token
+                                    access_token: accessToken
                                 });
                                 return; // Success
                             }
