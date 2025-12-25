@@ -119,15 +119,33 @@ export const AdminProductsTab: React.FC = () => {
 
     const toggleStatus = async (id: string, currentStatus: boolean) => {
         try {
-            const { error } = await (supabase
-                .from('products') as any)
-                .update({ is_active: !currentStatus })
-                .eq('id', id);
+            // Priority: Direct REST API Call for instant update
+            if (!accessToken) {
+                throw new Error('No access token available for status update');
+            }
 
-            if (error) throw error;
+            const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/products?id=eq.${id}`;
+            const response = await fetch(url, {
+                method: 'PATCH',
+                headers: {
+                    'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=minimal' // Don't need the return body, just the status code
+                },
+                body: JSON.stringify({ is_active: !currentStatus })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Direct update failed: ${response.status} ${errorText}`);
+            }
+
+            toast.success(`Artifact ${!currentStatus ? 'activated' : 'archived'} successfully`);
             fetchProducts();
-        } catch (error) {
-            toast.error('Failed to update status');
+        } catch (error: any) {
+            console.error('Error updating status:', error);
+            toast.error(error.message || 'Failed to update status');
         }
     };
 
