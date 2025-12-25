@@ -1,0 +1,241 @@
+import React, { useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { Navbar } from "@/components/Navbar";
+import { Footer } from "@/components/Footer";
+import { useQuery } from "@tanstack/react-query";
+import { supabase, directFetchProducts } from "@/lib/supabase";
+import { Loader2, ArrowLeft, ShieldCheck, Zap, Info, Plus, Minus, ShoppingCart } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { useCart } from "@/contexts/CartContext";
+import { motion } from "framer-motion";
+
+const fetchProductById = async (id: string) => {
+    try {
+        const data = await directFetchProducts(`select=*,product_variants(*)&id=eq.${id}`);
+        return data?.[0] || null;
+    } catch (err) {
+        console.error("Product fetch failure:", err);
+        throw err;
+    }
+};
+
+export function ProductDetailsPage() {
+    const { id } = useParams();
+    const navigate = useNavigate();
+    const { addItem } = useCart();
+    const [selectedSize, setSelectedSize] = useState<string | null>(null);
+    const [quantity, setQuantity] = useState(1);
+
+    const { data: product, isLoading, error } = useQuery({
+        queryKey: ["product", id],
+        queryFn: () => fetchProductById(id!),
+        enabled: !!id,
+    });
+
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-background flex items-center justify-center">
+                <Loader2 className="w-12 h-12 text-primary animate-spin" />
+            </div>
+        );
+    }
+
+    if (error || !product) {
+        return (
+            <div className="min-h-screen bg-background flex items-center justify-center p-4 text-center">
+                <div>
+                    <h1 className="text-2xl font-display font-bold text-destructive mb-4 uppercase tracking-tighter">Gear Not Found</h1>
+                    <Button variant="outline" onClick={() => navigate(-1)}>RETURN TO ARMORY</Button>
+                </div>
+            </div>
+        );
+    }
+
+    const p = product as any;
+
+    const handleAddToCart = () => {
+        if (!selectedSize) return;
+
+        const variant = p.product_variants.find((v: any) => v.size === selectedSize);
+        if (!variant) return;
+
+        addItem({
+            productId: p.id,
+            variantId: variant.id,
+            name: p.name,
+            price: p.base_price,
+            image: p.images?.[0] || "",
+            size: selectedSize,
+            quantity,
+        });
+    };
+
+    const currentVariant = p.product_variants.find((v: any) => v.size === selectedSize);
+    const isOutOfStock = currentVariant ? currentVariant.stock_quantity === 0 : true;
+
+    return (
+        <div className="min-h-screen bg-background text-foreground flex flex-col">
+            <Navbar />
+
+            <main className="flex-1 pt-24 pb-12">
+                <div className="container mx-auto px-4">
+                    <Button
+                        variant="ghost"
+                        onClick={() => navigate(-1)}
+                        className="mb-8 hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all group"
+                    >
+                        <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" />
+                        BACK_TO_LIST
+                    </Button>
+
+                    <div className="grid lg:grid-cols-2 gap-12">
+                        {/* Visual Section */}
+                        <div className="space-y-6">
+                            <div className="relative aspect-square bg-card border-2 border-primary/20 angular-card overflow-hidden group">
+                                <img
+                                    src={p.images?.[0]}
+                                    alt={p.name}
+                                    className="w-full h-full object-cover"
+                                />
+
+                                {/* Rarity Overlay */}
+                                <div className={cn(
+                                    "absolute top-4 left-4 px-3 py-1 border font-display font-bold text-xs tracking-widest uppercase rounded-sm z-10",
+                                    p.rarity === 'legendary' ? "bg-rarity-legendary/20 text-rarity-legendary border-rarity-legendary/50 animate-glow-pulse" :
+                                        p.rarity === 'epic' ? "bg-rarity-epic/20 text-rarity-epic border-rarity-epic/50" :
+                                            "bg-muted/80 text-muted-foreground border-border"
+                                )}>
+                                    {p.rarity}
+                                </div>
+                            </div>
+
+                            {/* Specs Grid */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="p-4 bg-card border-2 border-white/5 angular-card">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <Zap className="w-4 h-4 text-primary" />
+                                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Category</span>
+                                    </div>
+                                    <p className="font-display font-black text-lg uppercase italic">{p.category}</p>
+                                </div>
+                                <div className="p-4 bg-card border-2 border-white/5 angular-card">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <ShieldCheck className="w-4 h-4 text-primary" />
+                                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">StockStatus</span>
+                                    </div>
+                                    <p className={cn(
+                                        "font-display font-black text-lg uppercase italic",
+                                        isOutOfStock ? "text-destructive" : "text-primary"
+                                    )}>
+                                        {isOutOfStock ? "LOOTED" : "READY"}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Info Section */}
+                        <div className="flex flex-col">
+                            <div className="mb-8">
+                                <h1 className="text-4xl md:text-5xl lg:text-6xl font-display font-black tracking-tighter uppercase italic neon-text mb-4">
+                                    {p.name}
+                                </h1>
+                                <div className="flex items-center gap-4 mb-6">
+                                    <span className="text-3xl font-display font-black text-primary italic">${p.base_price.toFixed(0)}</span>
+                                    {p.discount_percentage > 0 && (
+                                        <span className="px-2 py-0.5 bg-accent/20 text-accent text-xs font-bold rounded-sm border border-accent/30">
+                                            -{p.discount_percentage}% OFF
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-muted-foreground text-sm uppercase leading-relaxed tracking-wide border-l-2 border-primary/30 pl-4 py-2 bg-primary/5">
+                                    {p.description}
+                                </p>
+                            </div>
+
+                            {/* Selection Section */}
+                            <div className="space-y-8 bg-card/50 p-6 border-2 border-white/5 angular-card relative">
+                                <div className="absolute top-0 right-0 w-8 h-8 border-r-2 border-t-2 border-primary/20" />
+
+                                {/* Size Selection */}
+                                <div>
+                                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                                        SELECT_SIZE_VARIANT
+                                        <Info className="w-3 h-3" />
+                                    </h3>
+                                    <div className="flex flex-wrap gap-3">
+                                        {p.product_variants.map((v: any) => (
+                                            <button
+                                                key={v.size}
+                                                disabled={v.stock_quantity === 0}
+                                                onClick={() => setSelectedSize(v.size)}
+                                                className={cn(
+                                                    "w-14 h-14 flex items-center justify-center font-display font-black border-2 transition-all relative overflow-hidden group",
+                                                    selectedSize === v.size
+                                                        ? "bg-primary text-primary-foreground border-primary shadow-[0_0_15px_rgba(0,255,240,0.3)]"
+                                                        : "bg-transparent text-muted-foreground border-border hover:border-primary/50",
+                                                    v.stock_quantity === 0 && "opacity-30 cursor-not-allowed bg-muted/20"
+                                                )}
+                                            >
+                                                {v.size}
+                                                {v.stock_quantity > 0 && v.stock_quantity <= 5 && (
+                                                    <div className="absolute top-0 right-0 w-2 h-2 bg-accent" />
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Quantity & Action */}
+                                <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                                    <div className="flex items-center bg-background/50 border-2 border-white/10 angular-card p-1">
+                                        <button
+                                            onClick={() => setQuantity(q => Math.max(1, q - 1))}
+                                            className="w-10 h-10 flex items-center justify-center hover:text-primary transition-colors"
+                                        >
+                                            <Minus size={20} />
+                                        </button>
+                                        <span className="w-12 text-center font-display font-black text-xl tabular-nums">
+                                            {quantity}
+                                        </span>
+                                        <button
+                                            onClick={() => setQuantity(q => q + 1)}
+                                            className="w-10 h-10 flex items-center justify-center hover:text-primary transition-colors"
+                                        >
+                                            <Plus size={20} />
+                                        </button>
+                                    </div>
+
+                                    <Button
+                                        variant="cyber"
+                                        size="lg"
+                                        className="flex-1 h-auto py-5 text-xl font-black italic tracking-widest group"
+                                        disabled={!selectedSize || isOutOfStock}
+                                        onClick={handleAddToCart}
+                                    >
+                                        <ShoppingCart className="w-6 h-6 mr-3 group-hover:scale-110 transition-transform" />
+                                        EQUIP_GEAR
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Meta Tech Info */}
+                            <div className="mt-8 flex gap-6 text-[10px] text-muted-foreground uppercase tracking-wider">
+                                <div className="flex items-center gap-1.5">
+                                    <div className="w-1.5 h-1.5 bg-primary/40 rotate-45" />
+                                    SECURE_TRANS_VERIFIED
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                    <div className="w-1.5 h-1.5 bg-primary/40 rotate-45" />
+                                    LOYALTY_XP_READY
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <Footer />
+        </div>
+    );
+}
