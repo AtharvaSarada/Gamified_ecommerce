@@ -148,9 +148,51 @@ export function ProductDetailsPage() {
                                         </span>
                                     )}
                                 </div>
-                                <p className="text-muted-foreground text-sm uppercase leading-relaxed tracking-wide border-l-2 border-primary/30 pl-4 py-2 bg-primary/5">
-                                    {p.description}
-                                </p>
+                                <div className="space-y-6 mt-8">
+                                    {/* 1. About */}
+                                    <div>
+                                        <h3 className="font-display font-bold text-sm text-muted-foreground mb-2 uppercase tracking-widest">About the Product</h3>
+                                        <p className="text-foreground/80 text-sm leading-relaxed tracking-wide border-l-2 border-primary/30 pl-4 py-2 bg-primary/5">
+                                            {p.description || "No description available."}
+                                        </p>
+                                    </div>
+
+                                    {/* 2. Specifications */}
+                                    {p.specifications && Array.isArray(p.specifications) && p.specifications.length > 0 && (
+                                        <div>
+                                            <h3 className="font-display font-bold text-sm text-muted-foreground mb-4 uppercase tracking-widest">Specifications</h3>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                {(p.specifications as any[]).map((spec, idx) => (
+                                                    <div key={idx} className="bg-primary/5 border border-primary/10 rounded-sm p-3 relative group overflow-hidden">
+                                                        <div className="absolute top-0 left-0 w-1 h-full bg-primary/20 group-hover:bg-primary transition-colors duration-300" />
+                                                        <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 font-bold">
+                                                            {spec.key}
+                                                        </h4>
+                                                        <p className="text-sm font-medium text-foreground tracking-wide">
+                                                            {spec.value}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* 3. Size Chart */}
+                                    {p.size_chart_url && (
+                                        <div>
+                                            <h3 className="font-display font-bold text-sm text-muted-foreground mb-2 uppercase tracking-widest">Size Guide</h3>
+                                            <a
+                                                href={p.size_chart_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center px-4 py-2 bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-all rounded-sm font-bold uppercase tracking-wider text-xs group"
+                                            >
+                                                <Info className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
+                                                View Size Chart
+                                            </a>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Selection Section */}

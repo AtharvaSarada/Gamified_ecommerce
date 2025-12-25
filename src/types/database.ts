@@ -96,6 +96,8 @@ export interface Database {
                     id: string
                     name: string
                     description: string | null
+                    specifications: Json | null
+                    size_chart_url: string | null
                     category: 'regular' | 'oversized'
                     rarity: 'common' | 'epic' | 'legendary'
                     base_price: number
@@ -110,6 +112,8 @@ export interface Database {
                     id?: string
                     name: string
                     description?: string | null
+                    specifications?: Json | null
+                    size_chart_url?: string | null
                     category: 'regular' | 'oversized'
                     rarity: 'common' | 'epic' | 'legendary'
                     base_price: number
@@ -124,6 +128,8 @@ export interface Database {
                     id?: string
                     name?: string
                     description?: string | null
+                    specifications?: Json | null
+                    size_chart_url?: string | null
                     category?: 'regular' | 'oversized'
                     rarity?: 'common' | 'epic' | 'legendary'
                     base_price?: number
@@ -277,6 +283,8 @@ export interface Database {
                 Args: {
                     p_name: string;
                     p_description: string;
+                    p_specifications: Json;
+                    p_size_chart_url: string | null;
                     p_category: 'regular' | 'oversized';
                     p_rarity: 'common' | 'epic' | 'legendary';
                     p_base_price: number;
@@ -291,6 +299,8 @@ export interface Database {
                     p_product_id: string;
                     p_name: string;
                     p_description: string;
+                    p_specifications: Json;
+                    p_size_chart_url: string | null;
                     p_category: 'regular' | 'oversized';
                     p_rarity: 'common' | 'epic' | 'legendary';
                     p_base_price: number;

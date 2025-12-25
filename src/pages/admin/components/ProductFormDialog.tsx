@@ -20,11 +20,16 @@ import { ImageUpload } from './ImageUpload';
 const productSchema = z.object({
     name: z.string().min(2, 'Name must be at least 2 characters'),
     description: z.string().optional(),
+    specifications: z.array(z.object({
+        key: z.string().min(1, 'Header required'),
+        value: z.string().min(1, 'Detail required')
+    })).optional(),
     category: z.enum(['regular', 'oversized']),
     rarity: z.enum(['common', 'epic', 'legendary']),
     base_price: z.coerce.number().min(0, 'Price must be positive'),
     discount_percentage: z.coerce.number().min(0).max(100).default(0),
     images: z.array(z.string()).min(1, 'At least one image is required'),
+    size_chart_images: z.array(z.string()).optional(),
     is_active: z.boolean().default(true),
     variants: z.array(z.object({
         size: z.enum(['S', 'M', 'L', 'XL']),
@@ -57,21 +62,29 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
         defaultValues: {
             name: '',
             description: '',
+            specifications: [],
             category: 'regular',
             rarity: 'common',
             base_price: 0,
             discount_percentage: 0,
             images: [],
+            size_chart_images: [],
             is_active: true,
             variants: SIZES.map(size => ({ size, stock_quantity: 10, low_stock_threshold: 5 }))
         }
     });
 
     const [stagedFiles, setStagedFiles] = React.useState<File[]>([]);
+    const [stagedSizeChartFiles, setStagedSizeChartFiles] = React.useState<File[]>([]);
 
-    const { fields } = useFieldArray({
+    const { fields: variantFields } = useFieldArray({
         control: form.control,
         name: "variants"
+    });
+
+    const { fields: specFields, append: appendSpec, remove: removeSpec } = useFieldArray({
+        control: form.control,
+        name: "specifications"
     });
 
     useEffect(() => {
@@ -88,14 +101,21 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                     };
                 });
 
+                // Parse existing specs if they are stored as JSONB, or default to empty
+                const specs = Array.isArray(productToEdit.specifications)
+                    ? productToEdit.specifications
+                    : [];
+
                 form.reset({
                     name: productToEdit.name,
                     description: productToEdit.description || '',
+                    specifications: specs as any,
                     category: productToEdit.category,
                     rarity: productToEdit.rarity,
                     base_price: productToEdit.base_price,
                     discount_percentage: productToEdit.discount_percentage || 0,
                     images: productToEdit.images || [],
+                    size_chart_images: productToEdit.size_chart_url ? [productToEdit.size_chart_url] : [],
                     is_active: productToEdit.is_active,
                     variants
                 });
@@ -103,16 +123,19 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                 form.reset({
                     name: '',
                     description: '',
+                    specifications: [],
                     category: 'regular',
                     rarity: 'common',
                     base_price: 0,
                     discount_percentage: 0,
                     images: [],
+                    size_chart_images: [],
                     is_active: true,
                     variants: SIZES.map(size => ({ size, stock_quantity: 50, low_stock_threshold: 5 }))
                 });
             }
             setStagedFiles([]);
+            setStagedSizeChartFiles([]);
         }
     }, [open, productToEdit, form]);
 
@@ -148,7 +171,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
         console.log(`Admin: Calling RPC '${functionName}'...`);
 
         // 1. Try SDK with Timeout
-        const sdkPromise = supabase.rpc(functionName, params);
+        const sdkPromise = supabase.rpc(functionName as any, params);
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('SDK_RPC_TIMEOUT')), 5000));
 
         try {
@@ -190,18 +213,28 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
         try {
             const productId = productToEdit?.id;
 
-            // 1. Filter out blob URLs and upload actual files
+            // 1a. Upload Product Images
             const existingUrls = data.images.filter(url => !url.startsWith('blob:'));
             let newUrls: string[] = [];
 
             if (stagedFiles.length > 0) {
                 toast.loading('Uploading images...', { id: 'upload' });
                 newUrls = await uploadImages(stagedFiles);
-                toast.dismiss('upload');
             }
 
-            // 2. Combine URLs in order (relying on the order in data.images)
-            // Replace blob URLs in data.images with their uploaded equivalents
+            // 1b. Upload Size Chart Image
+            const existingSizeChartUrls = (data.size_chart_images || []).filter(url => !url.startsWith('blob:'));
+            let newSizeChartUrls: string[] = [];
+
+            if (stagedSizeChartFiles.length > 0) {
+                toast.loading('Uploading size chart...', { id: 'upload-size' });
+                newSizeChartUrls = await uploadImages(stagedSizeChartFiles);
+                toast.dismiss('upload-size');
+            }
+
+            toast.dismiss('upload');
+
+            // 2a. Combine Product URLs
             let newUrlIndex = 0;
             const finalImageUrls = data.images.map(url => {
                 if (url.startsWith('blob:')) {
@@ -210,12 +243,24 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                 return url;
             });
 
+            // 2b. Combine Size Chart URLs
+            let newSizeChartIndex = 0;
+            const finalSizeChartUrls = (data.size_chart_images || []).map(url => {
+                if (url.startsWith('blob:')) {
+                    return newSizeChartUrls[newSizeChartIndex++];
+                }
+                return url;
+            });
+            const sizeChartUrl = finalSizeChartUrls[0] || null;
+
             if (isEditing && productId) {
                 // UPDATE PRODUCT via Robust RPC
                 await callRpc('admin_update_product', {
                     p_product_id: productId,
                     p_name: data.name,
                     p_description: data.description || '',
+                    p_specifications: data.specifications || [],
+                    p_size_chart_url: sizeChartUrl,
                     p_category: data.category,
                     p_rarity: data.rarity,
                     p_base_price: Number(data.base_price),
@@ -251,6 +296,8 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                 await callRpc('admin_create_product', {
                     p_name: data.name,
                     p_description: data.description || '',
+                    p_specifications: data.specifications || [],
+                    p_size_chart_url: sizeChartUrl,
                     p_category: data.category,
                     p_rarity: data.rarity,
                     p_base_price: Number(data.base_price),
@@ -399,22 +446,103 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                                             name="description"
                                             render={({ field }) => (
                                                 <FormItem>
-                                                    <FormLabel>Description</FormLabel>
-                                                    <FormControl><Textarea className="min-h-[100px]" {...field} /></FormControl>
+                                                    <FormLabel>About the Product</FormLabel>
+                                                    <FormControl><Textarea className="min-h-[100px]" placeholder="Main product description..." {...field} /></FormControl>
                                                     <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+
+                                        {/* Dynamic Specifications */}
+                                        <div className="space-y-3 pt-2">
+                                            <div className="flex items-center justify-between">
+                                                <FormLabel>Specifications</FormLabel>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => appendSpec({ key: '', value: '' })}
+                                                    className="h-8 text-xs uppercase font-bold text-primary hover:bg-primary/10"
+                                                >
+                                                    <Plus className="w-3 h-3 mr-1" /> Add Spec
+                                                </Button>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                {specFields.map((field, index) => (
+                                                    <div key={field.id} className="flex gap-2 items-start group">
+                                                        <FormField
+                                                            control={form.control}
+                                                            name={`specifications.${index}.key`}
+                                                            render={({ field }) => (
+                                                                <FormItem className="flex-1 space-y-0">
+                                                                    <FormControl>
+                                                                        <Input placeholder="Header (e.g. Material)" className="h-9 text-xs" {...field} />
+                                                                    </FormControl>
+                                                                    <FormMessage className="text-[10px]" />
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                        <FormField
+                                                            control={form.control}
+                                                            name={`specifications.${index}.value`}
+                                                            render={({ field }) => (
+                                                                <FormItem className="flex-[2] space-y-0">
+                                                                    <FormControl>
+                                                                        <Input placeholder="Detail (e.g. 100% Cotton)" className="h-9 text-xs" {...field} />
+                                                                    </FormControl>
+                                                                    <FormMessage className="text-[10px]" />
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => removeSpec(index)}
+                                                            className="h-9 w-9 text-muted-foreground hover:text-destructive shrink-0"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                                {specFields.length === 0 && (
+                                                    <div className="text-xs text-muted-foreground text-center py-4 border border-dashed border-white/5 rounded-lg bg-white/2 italic">
+                                                        No specifications added yet.
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <FormField
+                                            control={form.control}
+                                            name="size_chart_images"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Size Chart</FormLabel>
+                                                    <FormControl>
+                                                        <ImageUpload
+                                                            value={field.value || []}
+                                                            onChange={field.onChange}
+                                                            onFilesChange={setStagedSizeChartFiles}
+                                                        />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                    <p className="text-[10px] text-muted-foreground italic">
+                                                        * Upload a size chart image.
+                                                    </p>
                                                 </FormItem>
                                             )}
                                         />
                                     </div>
                                 </div>
 
-                                {/* Stock Matrix */}
                                 <div className="space-y-4 pt-4 border-t border-white/5">
                                     <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                                         <ImageIcon size={16} /> Inventory Matrix
                                     </h3>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-                                        {fields.map((field, index) => (
+                                        {variantFields.map((field, index) => (
                                             <div key={field.id} className="p-3 rounded-lg bg-white/5 border border-white/5 space-y-2">
                                                 <div className="font-bold text-center text-primary">{form.getValues(`variants.${index}.size`)}</div>
                                                 <FormField

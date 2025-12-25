@@ -27,6 +27,8 @@ export interface Product {
     id: string;
     name: string;
     description: string | null;
+    specifications: { key: string; value: string }[] | null;
+    size_chart_url: string | null;
     category: ProductCategory;
     rarity: ProductRarity;
     base_price: number;
