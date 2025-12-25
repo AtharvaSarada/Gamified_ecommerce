@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
 import { Shield, Users, ShoppingBag, TrendingUp, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,8 +21,10 @@ export function AdminPage() {
                 <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h1 className="text-3xl font-display font-bold tracking-tight text-foreground flex items-center gap-3">
-                            <Shield className="w-8 h-8 text-primary" />
-                            ADMIN COMMAND CENTER
+                            <Link to="/" className="flex items-center gap-3 hover:text-primary transition-colors cursor-pointer">
+                                <Shield className="w-8 h-8 text-primary" />
+                                ADMIN COMMAND CENTER
+                            </Link>
                         </h1>
                         <p className="text-muted-foreground mt-1">
                             Welcome back, Commander. Oversee the guild's operations.
