@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -140,6 +141,51 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
         return Promise.all(uploadPromises);
     };
 
+    const { accessToken } = useAuth();
+
+    // Helper to race SDK rpc against timeout and fallback to REST
+    const callRpc = async (functionName: string, params: any) => {
+        console.log(`Admin: Calling RPC '${functionName}'...`);
+
+        // 1. Try SDK with Timeout
+        const sdkPromise = supabase.rpc(functionName, params);
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('SDK_RPC_TIMEOUT')), 5000));
+
+        try {
+            const result = await Promise.race([sdkPromise, timeoutPromise]) as any;
+            if (result.error) throw result.error;
+            console.log(`Admin: RPC '${functionName}' succeeded via SDK`);
+            return result.data;
+        } catch (err: any) {
+            console.warn(`Admin: SDK RPC '${functionName}' failed or timed out (${err.message}). Attempting REST fallback...`);
+
+            if (!accessToken) {
+                throw new Error('No access token available for RPC fallback');
+            }
+
+            // 2. Fallback to Direct REST Fetch
+            const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/${functionName}`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(params)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`RPC Direct fetch failed: ${response.status} ${errorText}`);
+            }
+
+            // RPCs might return void (null body) or data
+            const text = await response.text();
+            return text ? JSON.parse(text) : null;
+        }
+    };
+
     const onSubmit = async (data: ProductFormValues) => {
         try {
             const productId = productToEdit?.id;
@@ -165,8 +211,8 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
             });
 
             if (isEditing && productId) {
-                // UPDATE PRODUCT via RPC
-                const { error: updateError } = await supabase.rpc('admin_update_product', {
+                // UPDATE PRODUCT via Robust RPC
+                await callRpc('admin_update_product', {
                     p_product_id: productId,
                     p_name: data.name,
                     p_description: data.description || '',
@@ -176,32 +222,24 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                     p_discount_percentage: Number(data.discount_percentage),
                     p_images: finalImageUrls,
                     p_is_active: data.is_active
-                } as any);
-
-                if (updateError) throw updateError;
+                });
 
                 console.log('Product details updated, proceeding to stock variants update...');
 
-                // Update Stocks via RPC for each variant
-                // We use an UPSERT pattern so it works even if variants are missing
+                // Update Stocks via Robust RPC for each variant
                 for (const vData of data.variants) {
                     console.log(`Upserting stock for ${vData.size} (Product: ${productId}) to ${vData.stock_quantity}`);
-                    const { error: stockError } = await supabase.rpc('admin_update_product_stock', {
+                    await callRpc('admin_update_product_stock', {
                         p_product_id: productId,
                         p_size: vData.size,
                         p_new_stock: Number(vData.stock_quantity),
                         p_low_stock_threshold: Number(vData.low_stock_threshold)
-                    } as any);
-
-                    if (stockError) {
-                        console.error(`Failed to update stock for ${vData.size}:`, stockError);
-                        throw new Error(`Stock update failed for ${vData.size}: ${stockError.message}`);
-                    }
+                    });
                 }
 
                 toast.success('Product and inventory updated successfully');
             } else {
-                // CREATE PRODUCT via RPC
+                // CREATE PRODUCT via Robust RPC
                 // Prepare variants JSONB
                 const variantsJson = data.variants.map(v => ({
                     size: v.size,
@@ -210,7 +248,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                     sku: `${data.name.substring(0, 3).toUpperCase()}-${v.size}-${Date.now()}`
                 }));
 
-                const { error: createError } = await supabase.rpc('admin_create_product', {
+                await callRpc('admin_create_product', {
                     p_name: data.name,
                     p_description: data.description || '',
                     p_category: data.category,
@@ -219,9 +257,8 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                     p_discount_percentage: Number(data.discount_percentage),
                     p_images: finalImageUrls,
                     p_variants: variantsJson
-                } as any);
+                });
 
-                if (createError) throw createError;
                 toast.success('Product created successfully');
             }
 
