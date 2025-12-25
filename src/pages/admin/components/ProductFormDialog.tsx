@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Loader2, Plus, Trash2, Image as ImageIcon } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { ImageUpload } from './ImageUpload';
 
 const productSchema = z.object({
     name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -23,7 +24,7 @@ const productSchema = z.object({
     rarity: z.enum(['common', 'epic', 'legendary']),
     base_price: z.coerce.number().min(0, 'Price must be positive'),
     discount_percentage: z.coerce.number().min(0).max(100).default(0),
-    images: z.string().min(1, 'At least one image URL is required'), // Simplified to comma separated or single line for now
+    images: z.array(z.string()).min(1, 'At least one image is required'),
     is_active: z.boolean().default(true),
     variants: z.array(z.object({
         size: z.enum(['S', 'M', 'L', 'XL', 'XXL']),
@@ -60,11 +61,13 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
             rarity: 'common',
             base_price: 0,
             discount_percentage: 0,
-            images: '',
+            images: [],
             is_active: true,
             variants: SIZES.map(size => ({ size, stock_quantity: 10, low_stock_threshold: 5 }))
         }
     });
+
+    const [stagedFiles, setStagedFiles] = React.useState<File[]>([]);
 
     const { fields } = useFieldArray({
         control: form.control,
@@ -92,7 +95,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                     rarity: productToEdit.rarity,
                     base_price: productToEdit.base_price,
                     discount_percentage: productToEdit.discount_percentage || 0,
-                    images: productToEdit.images.join(', '), // Simple join for text input
+                    images: productToEdit.images || [],
                     is_active: productToEdit.is_active,
                     variants
                 });
@@ -104,18 +107,63 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                     rarity: 'common',
                     base_price: 0,
                     discount_percentage: 0,
-                    images: '',
+                    images: [],
                     is_active: true,
                     variants: SIZES.map(size => ({ size, stock_quantity: 50, low_stock_threshold: 5 }))
                 });
             }
+            setStagedFiles([]);
         }
     }, [open, productToEdit, form]);
 
+    const uploadImages = async (files: File[]) => {
+        const uploadPromises = files.map(async (file) => {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+            const filePath = `products/${fileName}`;
+
+            const { error: uploadError, data } = await supabase.storage
+                .from('product-images')
+                .upload(filePath, file);
+
+            if (uploadError) {
+                console.error('Upload error:', uploadError);
+                throw uploadError;
+            }
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('product-images')
+                .getPublicUrl(filePath);
+
+            return publicUrl;
+        });
+
+        return Promise.all(uploadPromises);
+    };
+
     const onSubmit = async (data: ProductFormValues) => {
         try {
-            const imageArray = data.images.split(',').map(s => s.trim()).filter(Boolean);
             const productId = productToEdit?.id;
+
+            // 1. Filter out blob URLs and upload actual files
+            const existingUrls = data.images.filter(url => !url.startsWith('blob:'));
+            let newUrls: string[] = [];
+
+            if (stagedFiles.length > 0) {
+                toast.loading('Uploading images...', { id: 'upload' });
+                newUrls = await uploadImages(stagedFiles);
+                toast.dismiss('upload');
+            }
+
+            // 2. Combine URLs in order (relying on the order in data.images)
+            // Replace blob URLs in data.images with their uploaded equivalents
+            let newUrlIndex = 0;
+            const finalImageUrls = data.images.map(url => {
+                if (url.startsWith('blob:')) {
+                    return newUrls[newUrlIndex++];
+                }
+                return url;
+            });
 
             if (isEditing && productId) {
                 // UPDATE PRODUCT via RPC
@@ -127,7 +175,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                     p_rarity: data.rarity,
                     p_base_price: Number(data.base_price),
                     p_discount_percentage: Number(data.discount_percentage),
-                    p_images: imageArray,
+                    p_images: finalImageUrls,
                     p_is_active: data.is_active
                 });
 
@@ -170,7 +218,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                     p_rarity: data.rarity,
                     p_base_price: Number(data.base_price),
                     p_discount_percentage: Number(data.discount_percentage),
-                    p_images: imageArray,
+                    p_images: finalImageUrls,
                     p_variants: variantsJson
                 });
 
@@ -289,24 +337,23 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                                         </div>
                                     </div>
 
-                                    {/* Media & Desc */}
                                     <div className="space-y-4">
                                         <FormField
                                             control={form.control}
                                             name="images"
                                             render={({ field }) => (
                                                 <FormItem>
-                                                    <FormLabel>Image URLs (Comma separated)</FormLabel>
+                                                    <FormLabel>Equipment Visualization</FormLabel>
                                                     <FormControl>
-                                                        <Textarea
-                                                            placeholder="https://example.com/image1.jpg, https://example.com/image2.jpg"
-                                                            className="min-h-[100px] font-mono text-xs"
-                                                            {...field}
+                                                        <ImageUpload
+                                                            value={field.value}
+                                                            onChange={field.onChange}
+                                                            onFilesChange={setStagedFiles}
                                                         />
                                                     </FormControl>
                                                     <FormMessage />
-                                                    <p className="text-[10px] text-muted-foreground">
-                                                        * Enter direct image URLs. For local files, please upload to a host first or configure Supabase Storage.
+                                                    <p className="text-[10px] text-muted-foreground italic">
+                                                        * Drag and drop to reorder. The first image will be used as the primary artifact preview.
                                                     </p>
                                                 </FormItem>
                                             )}
