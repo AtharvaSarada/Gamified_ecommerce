@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Trash2, ShoppingBag, ArrowRight, Minus, Plus } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, formatPrice } from "@/lib/utils";
 
 interface CartSidebarProps {
     isOpen: boolean;
@@ -88,7 +88,7 @@ export function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
                                                         {item.name}
                                                     </h3>
                                                     <span className="text-primary font-display font-bold text-sm">
-                                                        ${(item.price * item.quantity).toFixed(0)}
+                                                        {formatPrice(item.price * item.quantity)}
                                                     </span>
                                                 </div>
                                                 <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">
@@ -132,11 +132,11 @@ export function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
                             <div className="space-y-2">
                                 <div className="flex justify-between text-[10px] text-muted-foreground uppercase tracking-widest">
                                     <span>Subtotal</span>
-                                    <span className="tabular-nums">${cartTotal.toFixed(0)}</span>
+                                    <span className="tabular-nums">{formatPrice(cartTotal)}</span>
                                 </div>
                                 <div className="flex justify-between text-lg font-display font-black tracking-tighter uppercase italic">
                                     <span>Total Requirement</span>
-                                    <span className="text-primary neon-text tabular-nums">${cartTotal.toFixed(0)}</span>
+                                    <span className="text-primary neon-text tabular-nums">{formatPrice(cartTotal)}</span>
                                 </div>
                             </div>
 

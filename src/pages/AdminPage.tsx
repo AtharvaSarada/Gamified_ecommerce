@@ -10,7 +10,7 @@ export function AdminPage() {
     const stats = [
         { label: "Total Users", value: "1,234", icon: Users, color: "text-blue-500" },
         { label: "Active Orders", value: "56", icon: ShoppingBag, color: "text-primary" },
-        { label: "Revenue", value: "$12,450", icon: TrendingUp, color: "text-green-500" },
+        { label: "Revenue", value: "₹12,450", icon: TrendingUp, color: "text-green-500" },
         { label: "Reports", value: "3", icon: AlertTriangle, color: "text-red-500" },
     ];
 
@@ -78,7 +78,7 @@ export function AdminPage() {
                                                     <p className="text-sm font-medium">New order placed by user_429</p>
                                                     <p className="text-xs text-muted-foreground">2 minutes ago</p>
                                                 </div>
-                                                <div className="text-xs font-mono text-primary">$124.99</div>
+                                                <div className="text-xs font-mono text-primary">₹125</div>
                                             </div>
                                         ))}
                                     </div>

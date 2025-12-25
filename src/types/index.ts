@@ -2,7 +2,7 @@
 
 export type ProductCategory = 'regular' | 'oversized';
 export type ProductRarity = 'common' | 'epic' | 'legendary';
-export type ShirtSize = 'S' | 'M' | 'L' | 'XL' | 'XXL';
+export type ShirtSize = 'S' | 'M' | 'L' | 'XL';
 export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
 export type DiscountType = 'percentage' | 'fixed';

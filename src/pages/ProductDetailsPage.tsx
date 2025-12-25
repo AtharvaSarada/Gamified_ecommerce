@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase, directFetchProducts } from "@/lib/supabase";
 import { Loader2, ArrowLeft, ShieldCheck, Zap, Info, Plus, Minus, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, formatPrice } from "@/lib/utils";
 import { useCart } from "@/contexts/CartContext";
 import { motion } from "framer-motion";
 
@@ -141,7 +141,7 @@ export function ProductDetailsPage() {
                                     {p.name}
                                 </h1>
                                 <div className="flex items-center gap-4 mb-6">
-                                    <span className="text-3xl font-display font-black text-primary italic">${p.base_price.toFixed(0)}</span>
+                                    <span className="text-3xl font-display font-black text-primary italic">{formatPrice(p.base_price)}</span>
                                     {p.discount_percentage > 0 && (
                                         <span className="px-2 py-0.5 bg-accent/20 text-accent text-xs font-bold rounded-sm border border-accent/30">
                                             -{p.discount_percentage}% OFF

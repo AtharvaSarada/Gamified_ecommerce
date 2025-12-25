@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { ShoppingCart, Eye, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, formatPrice } from "@/lib/utils";
 import { useWishlist } from "@/hooks/useWishlist";
 import { Link } from "react-router-dom";
 
@@ -161,7 +161,7 @@ export function ProductCard({
             </h3>
             <div className="flex items-center justify-between">
               <span className="font-display text-xl text-primary">
-                ${price.toFixed(0)}
+                {formatPrice(price)}
               </span>
               <span className={cn(
                 "text-[10px] font-display font-bold track-widest px-2 py-0.5 rounded-sm border",

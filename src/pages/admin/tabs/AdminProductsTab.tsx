@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Loader2, Search, Plus, Edit, Trash2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { ProductFormDialog } from '@/pages/admin/components/ProductFormDialog';
+import { formatPrice } from '@/lib/utils';
 
 export const AdminProductsTab: React.FC = () => {
     const { accessToken } = useAuth();
@@ -220,7 +221,7 @@ export const AdminProductsTab: React.FC = () => {
                                         </div>
                                     </TableCell>
                                     <TableCell className="text-right font-mono font-bold text-primary">
-                                        ₹{product.base_price}
+                                        {formatPrice(product.base_price)}
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <div className="flex justify-end gap-2">

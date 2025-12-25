@@ -27,7 +27,7 @@ const productSchema = z.object({
     images: z.array(z.string()).min(1, 'At least one image is required'),
     is_active: z.boolean().default(true),
     variants: z.array(z.object({
-        size: z.enum(['S', 'M', 'L', 'XL', 'XXL']),
+        size: z.enum(['S', 'M', 'L', 'XL']),
         stock_quantity: z.coerce.number().min(0),
         low_stock_threshold: z.coerce.number().min(0).default(5),
     })).min(1, 'At least one variant is required')
@@ -42,7 +42,7 @@ interface ProductFormDialogProps {
     onSuccess: () => void;
 }
 
-const SIZES: ShirtSize[] = ['S', 'M', 'L', 'XL', 'XXL'];
+const SIZES: ShirtSize[] = ['S', 'M', 'L', 'XL'];
 
 export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     open,

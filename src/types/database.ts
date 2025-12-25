@@ -139,7 +139,7 @@ export interface Database {
                 Row: {
                     id: string
                     product_id: string
-                    size: 'S' | 'M' | 'L' | 'XL' | 'XXL'
+                    size: 'S' | 'M' | 'L' | 'XL'
                     stock_quantity: number | null
                     low_stock_threshold: number | null
                     sku: string
@@ -147,7 +147,7 @@ export interface Database {
                 Insert: {
                     id?: string
                     product_id: string
-                    size: 'S' | 'M' | 'L' | 'XL' | 'XXL'
+                    size: 'S' | 'M' | 'L' | 'XL'
                     stock_quantity?: number | null
                     low_stock_threshold?: number | null
                     sku: string
@@ -155,7 +155,7 @@ export interface Database {
                 Update: {
                     id?: string
                     product_id?: string
-                    size?: 'S' | 'M' | 'L' | 'XL' | 'XXL'
+                    size?: 'S' | 'M' | 'L' | 'XL'
                     stock_quantity?: number | null
                     low_stock_threshold?: number | null
                     sku?: string
