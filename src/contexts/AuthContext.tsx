@@ -25,11 +25,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
-    const [profile, setProfile] = useState<Profile | null>(() => {
-        // Hydrate from localStorage for immediate UI responsiveness
-        const cached = localStorage.getItem('ggg_profile_cache');
-        return cached ? JSON.parse(cached) : null;
-    });
+    const [profile, setProfile] = useState<Profile | null>(null);
     const [loading, setLoading] = useState(true);
 
     const saveProfileToCache = (p: Profile | null) => {
@@ -55,146 +51,80 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                         console.log('Auth: Profile not found for user', userId);
                         return null;
                     }
-                    console.error('Auth: Profile fetch error:', error);
-                    // On error, we retry unless it's a "not found"
-                } else if (data) {
-                    const profileData = data as any;
-                    console.log('Auth: Profile successfully fetched');
+                    throw error;
+                }
+
+                if (data) {
+                    console.log('Auth: Profile successfully fetched for', userId);
                     return {
-                        ...profileData,
-                        level: profileData.level || 1,
-                        xp: profileData.xp || 0
+                        ...data,
+                        level: (data as any).level || 1,
+                        xp: (data as any).xp || 0
                     } as Profile;
                 }
             } catch (error) {
-                console.error('Auth: Profile fetch exception:', error);
+                console.error(`Auth: Profile fetch error (Attempt ${i + 1}):`, error);
+                if (i < retries - 1) {
+                    await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+                }
             }
-
-            console.warn(`Auth: Profile fetch failed or delayed, retrying in ${2 * (i + 1)}s...`);
-            await new Promise(r => setTimeout(r, 2000 * (i + 1)));
         }
         return null;
     };
 
     useEffect(() => {
-        // Initialize auth state on mount
         let mounted = true;
+        console.log('Auth: Provider mounting...');
 
-        console.log('Auth: Initializing...');
+        const handleStateChange = async (event: string, session: any) => {
+            console.log(`Auth: Event [${event}] for user:`, session?.user?.id || 'none');
 
-        // Failsafe: Turn off loading after 5 seconds no matter what
-        const timeout = setTimeout(() => {
-            if (mounted && loading) {
-                console.warn('Auth: Initialization timeout reached, forcing loading false');
+            if (!mounted) return;
+
+            if (session?.user) {
+                setUser(session.user);
+                const profileData = await fetchProfile(session.user.id);
+                if (mounted) {
+                    setProfile(profileData);
+                    setLoading(false);
+                }
+            } else {
+                setUser(null);
+                setProfile(null);
                 setLoading(false);
             }
-        }, 5000);
+        };
 
+        // 1. Initial manual check
         const initialize = async () => {
-            // Race getSession with a short timeout to prevent hanging
-            const sessionPromise = supabase.auth.getSession();
-            const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve({ error: { message: 'timeout' } } as any), 2000));
-
             try {
-                // Step 1: Get current session with timeout
-                const { data, error } = await Promise.race([sessionPromise, timeoutPromise]) as any;
-                const session = data?.session;
-                const sessionError = error;
-
-                if (sessionError && sessionError.message !== 'timeout') {
-                    console.error('Auth: Session error:', sessionError);
-                    if (mounted) {
-                        setUser(null);
-                        setProfile(null);
-                    }
-                    return;
-                }
-
-                if (sessionError?.message === 'timeout') {
-                    console.warn('Auth: getSession timed out, falling back to subscription');
-                } else if (!session?.user) {
-                    console.log('Auth: No active session (checked)');
-                    if (mounted) {
-                        setUser(null);
-                        setProfile(null);
-                        saveProfileToCache(null);
-                    }
-                } else {
-                    // Step 2: Set user
-                    console.log('Auth: Session found for user', session.user.id);
-                    if (mounted) setUser(session.user);
-
-                    // Step 3: Fetch profile data
-                    const profileData = await fetchProfile(session.user.id);
-
-                    if (mounted) {
-                        if (profileData) {
-                            console.log('Auth: Profile loaded', profileData);
-                            setProfile(profileData);
-                            saveProfileToCache(profileData);
-                        } else {
-                            // If fetch fails but we have a cache, KEEP it. Do NOT set null.
-                            console.warn('Auth: Fresh profile fetch failed, sticking with cache');
-                        }
-                    }
-                }
-
-            } catch (error) {
-                console.error('Auth: Initialization error:', error);
-                if (mounted) {
-                    setUser(null);
-                    // Don't clear profile cache on generic error to prevent flicker
-                }
-            } finally {
-                clearTimeout(timeout); // Clear the failsafe timeout too
-                console.log('Auth: Initialization complete, setting loading false');
+                const { data: { session } } = await supabase.auth.getSession();
+                await handleStateChange('INITIAL_CHECK', session);
+            } catch (err) {
+                console.error('Auth: Initial session check failed:', err);
                 if (mounted) setLoading(false);
             }
         };
 
         initialize();
 
-        // Step 4: Listen for auth state changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            async (event, session) => {
-                console.log('Auth: Event received:', event);
+        // 2. Subscription for all future events
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            handleStateChange(event, session);
+        });
 
-                try {
-                    if (session?.user) {
-                        console.log('Auth: User changed to', session.user.id);
-                        if (mounted) setUser(session.user);
-
-                        // Refetch profile on auth change
-                        const profileData = await fetchProfile(session.user.id);
-
-                        if (mounted) {
-                            if (profileData) {
-                                console.log('Auth: Profile updated from event');
-                                setProfile(profileData);
-                                saveProfileToCache(profileData);
-                            }
-                        }
-                    } else {
-                        console.log('Auth: User signed out or session cleared');
-                        if (mounted) {
-                            setUser(null);
-                            setProfile(null);
-                            saveProfileToCache(null);
-                        }
-                    }
-                } catch (error) {
-                    console.error('Auth: State change handler error:', error);
-                } finally {
-                    clearTimeout(timeout);
-                    if (mounted) setLoading(false);
-                }
+        // 3. Failsafe: Ensure loading stops
+        const timer = setTimeout(() => {
+            if (mounted && loading) {
+                console.warn('Auth: Loading failsafe triggered');
+                setLoading(false);
             }
-        );
+        }, 10000);
 
         return () => {
             mounted = false;
             subscription.unsubscribe();
-            clearTimeout(timeout);
+            clearTimeout(timer);
         };
     }, []);
 
