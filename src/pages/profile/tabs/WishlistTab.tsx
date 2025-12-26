@@ -3,17 +3,16 @@ import { useWishlist } from '@/hooks/useWishlist';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
-import { Heart, ShoppingCart, Trash2, ArrowRight } from 'lucide-react';
+import { Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, Navigate } from 'react-router-dom';
 import { toast } from 'sonner';
-
-type Product = any;
+import { ProductCard, Rarity } from '@/components/ProductCard';
 
 export const WishlistTab: React.FC = () => {
     const { user, loading: authLoading } = useAuth();
-    const { wishlist, toggleWishlist, loading: wishlistLoading } = useWishlist();
-    const [products, setProducts] = useState<Product[]>([]);
+    const { wishlist, loading: wishlistLoading } = useWishlist();
+    const [products, setProducts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -26,15 +25,28 @@ export const WishlistTab: React.FC = () => {
 
             try {
                 setLoading(true);
+                // Fetch products with variants to calculate stock
                 const { data, error } = await supabase
                     .from('products')
-                    .select('*')
+                    .select('*, product_variants(stock_quantity)')
                     .in('id', wishlist)
                     .eq('is_active', true)
                     .is('deleted_at', null);
 
                 if (error) throw error;
-                setProducts(data || []);
+
+                // Transform data for ProductCard
+                const transformedProducts = (data || []).map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    price: p.base_price,
+                    images: p.images || [],
+                    rarity: p.rarity as Rarity,
+                    stock: p.product_variants?.reduce((acc: number, v: any) => acc + (v.stock_quantity || 0), 0) || 0,
+                    fit: p.category as "regular" | "oversized"
+                }));
+
+                setProducts(transformedProducts);
             } catch (error) {
                 console.error('Error fetching wishlist:', error);
                 toast.error('Failed to load wishlist');
@@ -95,37 +107,8 @@ export const WishlistTab: React.FC = () => {
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.9 }}
-                            className="group relative bg-[#0a0e27]/50 border border-white/5 rounded-2xl overflow-hidden hover:border-primary/30 transition-all duration-500 hover:shadow-[0_0_20px_rgba(0,255,240,0.1)]"
                         >
-                            <div className="aspect-[4/5] relative overflow-hidden">
-                                <img
-                                    src={product.image_url}
-                                    alt={product.name}
-                                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                />
-                                <button
-                                    onClick={() => toggleWishlist(product.id)}
-                                    className="absolute top-3 right-3 p-2 bg-background/80 backdrop-blur-md rounded-full text-primary shadow-lg hover:scale-110 transition-transform active:scale-90"
-                                >
-                                    <Heart size={16} fill="currentColor" />
-                                </button>
-                            </div>
-
-                            <div className="p-4 space-y-3">
-                                <div>
-                                    <h3 className="font-bold text-sm tracking-wide line-clamp-1">{product.name}</h3>
-                                    <p className="text-xs text-muted-foreground font-mono mt-1">₹{(product.base_price || product.price || 0).toLocaleString()}</p>
-                                </div>
-
-                                <div className="flex gap-2">
-                                    <Button className="flex-1 text-[10px] font-bold tracking-widest h-9 bg-primary/10 border border-primary/20 text-primary hover:bg-primary hover:text-primary-foreground transform active:scale-95 transition-all">
-                                        <ShoppingCart size={14} className="mr-2" /> ADD TO BAG
-                                    </Button>
-                                    <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10">
-                                        <Trash2 size={16} />
-                                    </Button>
-                                </div>
-                            </div>
+                            <ProductCard {...product} />
                         </motion.div>
                     ))}
                 </AnimatePresence>
