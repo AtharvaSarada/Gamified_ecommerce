@@ -18,6 +18,7 @@ import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { AdminRoute } from "./components/auth/AdminRoute";
 import { ProfilePage } from "./pages/profile/ProfilePage";
 import { AdminPage } from "./pages/AdminPage";
+import { CheckoutPage } from "./pages/CheckoutPage";
 import { validateEnv } from "./lib/config";
 
 // Validate environment variables on startup
@@ -38,7 +39,9 @@ const App = () => (
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/shop" element={<ShopPage />} />
+                <Route path="/shop" element={<ShopPage />} />
                 <Route path="/product/:id" element={<ProductDetailsPage />} />
+                <Route path="/checkout" element={<CheckoutPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/signup" element={<SignupPage />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />

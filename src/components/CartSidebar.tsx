@@ -1,9 +1,11 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Trash2, ShoppingBag, ArrowRight, Minus, Plus } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { Button } from "@/components/ui/button";
 import { cn, formatPrice } from "@/lib/utils";
+import { PriceDisplay } from "@/components/PriceDisplay";
 
 interface CartSidebarProps {
     isOpen: boolean;
@@ -11,7 +13,8 @@ interface CartSidebarProps {
 }
 
 export function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
-    const { items, removeItem, updateQuantity, cartTotal, cartCount } = useCart();
+    const navigate = useNavigate();
+    const { items, removeItem, updateQuantity, cartTotal, cartSavings, cartCount } = useCart();
 
     return (
         <AnimatePresence>
@@ -87,9 +90,19 @@ export function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
                                                     <h3 className="font-display font-bold text-sm tracking-wide uppercase truncate max-w-[180px]">
                                                         {item.name}
                                                     </h3>
+                                                    {/* Item Total */}
                                                     <span className="text-primary font-display font-bold text-sm">
-                                                        {formatPrice(item.price * item.quantity)}
+                                                        {formatPrice(item.finalPrice * item.quantity)}
                                                     </span>
+                                                </div>
+                                                {/* Unit Price */}
+                                                <div className="mt-1">
+                                                    <PriceDisplay
+                                                        basePrice={item.price}
+                                                        discountPercentage={item.discountPercentage}
+                                                        size="sm"
+                                                        showBadge={false}
+                                                    />
                                                 </div>
                                                 <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">
                                                     Size: <span className="text-foreground">{item.size}</span>
@@ -134,6 +147,13 @@ export function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
                                     <span>Subtotal</span>
                                     <span className="tabular-nums">{formatPrice(cartTotal)}</span>
                                 </div>
+
+                                {cartSavings > 0 && (
+                                    <div className="flex justify-between text-[10px] text-green-400 uppercase tracking-widest">
+                                        <span>You saved</span>
+                                        <span className="tabular-nums">-{formatPrice(cartSavings)}</span>
+                                    </div>
+                                )}
                                 <div className="flex justify-between text-lg font-display font-black tracking-tighter uppercase italic">
                                     <span>Total Requirement</span>
                                     <span className="text-primary neon-text tabular-nums">{formatPrice(cartTotal)}</span>
@@ -143,6 +163,10 @@ export function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
                             <Button
                                 className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-display font-black italic text-lg tracking-widest py-6 angular-btn group"
                                 disabled={items.length === 0}
+                                onClick={() => {
+                                    onClose();
+                                    navigate("/checkout");
+                                }}
                             >
                                 PROCEED TO CHECKOUT
                                 <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />

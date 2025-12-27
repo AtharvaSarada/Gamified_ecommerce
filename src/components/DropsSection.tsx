@@ -12,6 +12,7 @@ interface Product {
   id: string;
   name: string;
   price: number;
+  discountPercentage?: number;
   images: string[];
   rarity: Rarity;
   stock: number;
@@ -21,7 +22,7 @@ interface Product {
 // Fetch products logic
 const fetchDrops = async (): Promise<Product[]> => {
   try {
-    const data = await directFetchProducts("select=id,name,base_price,rarity,category,images,product_variants(stock_quantity)&is_active=eq.true&deleted_at=is.null");
+    const data = await directFetchProducts("select=id,name,base_price,discount_percentage,rarity,category,images,product_variants(stock_quantity)&is_active=eq.true&deleted_at=is.null");
 
     return (data || []).map((p: any) => {
       const totalStock = p.product_variants?.reduce((acc: number, v: any) => acc + (v.stock_quantity || 0), 0) || 0;
@@ -29,6 +30,7 @@ const fetchDrops = async (): Promise<Product[]> => {
         id: p.id,
         name: p.name,
         price: p.base_price,
+        discountPercentage: p.discount_percentage,
         images: p.images || [],
         rarity: p.rarity as Rarity,
         stock: totalStock,

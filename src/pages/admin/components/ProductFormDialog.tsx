@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { Loader2, Plus, Trash2, Image as ImageIcon } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ImageUpload } from './ImageUpload';
+import { PriceDisplay } from '@/components/PriceDisplay';
 
 const productSchema = z.object({
     name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -416,6 +417,17 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                                                         <FormMessage />
                                                     </FormItem>
                                                 )}
+                                            />
+                                        </div>
+
+                                        {/* Price Preview */}
+                                        <div className="col-span-2 bg-white/5 p-3 rounded-lg border border-white/5 flex items-center justify-between">
+                                            <span className="text-xs text-muted-foreground uppercase tracking-wider font-bold">Display Preview</span>
+                                            <PriceDisplay
+                                                basePrice={Number(form.watch('base_price')) || 0}
+                                                discountPercentage={Number(form.watch('discount_percentage')) || 0}
+                                                size="md"
+                                                showBadge={true}
                                             />
                                         </div>
                                     </div>

@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShoppingCart, Eye, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn, formatPrice } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { PriceDisplay } from "@/components/PriceDisplay";
 import { useWishlist } from "@/hooks/useWishlist";
 import { Link } from "react-router-dom";
 
@@ -12,6 +13,7 @@ interface ProductCardProps {
   id: string;
   name: string;
   price: number;
+  discountPercentage?: number;
   images: string[];
   rarity: Rarity;
   stock: number;
@@ -46,6 +48,7 @@ export function ProductCard({
   id,
   name,
   price,
+  discountPercentage,
   images,
   rarity,
   stock,
@@ -182,9 +185,12 @@ export function ProductCard({
               {name}
             </h3>
             <div className="flex items-center justify-between">
-              <span className="font-display text-xl text-primary">
-                {formatPrice(price)}
-              </span>
+              <PriceDisplay
+                basePrice={price}
+                discountPercentage={discountPercentage}
+                size="md"
+                showBadge={false}
+              />
               <span className={cn(
                 "text-[10px] font-display font-bold track-widest px-2 py-0.5 rounded-sm border",
                 stock > 0

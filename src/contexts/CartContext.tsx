@@ -2,13 +2,16 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "./AuthContext";
 import { toast } from "sonner";
+import { calculatePrice } from "@/utils/pricing";
 
 export interface CartItem {
     id: string;
     productId: string;
     variantId: string;
     name: string;
-    price: number;
+    price: number; // This is base price
+    discountPercentage: number;
+    finalPrice: number;
     image: string;
     size: string;
     quantity: number;
@@ -16,11 +19,12 @@ export interface CartItem {
 
 interface CartContextType {
     items: CartItem[];
-    addItem: (item: Omit<CartItem, "id">) => Promise<void>;
+    addItem: (item: Omit<CartItem, "id" | "finalPrice">) => Promise<void>;
     removeItem: (itemId: string) => Promise<void>;
     updateQuantity: (itemId: string, quantity: number) => Promise<void>;
     clearCart: () => Promise<void>;
     cartTotal: number;
+    cartSavings: number;
     cartCount: number;
     isLoading: boolean;
 }
@@ -52,22 +56,27 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
               product_id,
               variant_id,
               quantity,
-              products (name, base_price, images),
+              products (name, base_price, discount_percentage, images),
               product_variants (size)
             `)
                         .eq("cart_id", (cartData as any).id);
 
                     if (itemsData && !itemsError) {
-                        const formattedItems: CartItem[] = (itemsData as any[]).map((item: any) => ({
-                            id: item.id,
-                            productId: item.product_id,
-                            variantId: item.variant_id,
-                            name: item.products.name,
-                            price: item.products.base_price,
-                            image: item.products.images?.[0] || "",
-                            size: item.product_variants.size,
-                            quantity: item.quantity,
-                        }));
+                        const formattedItems: CartItem[] = (itemsData as any[]).map((item: any) => {
+                            const { finalPrice } = calculatePrice(item.products.base_price, item.products.discount_percentage);
+                            return {
+                                id: item.id,
+                                productId: item.product_id,
+                                variantId: item.variant_id,
+                                name: item.products.name,
+                                price: item.products.base_price,
+                                discountPercentage: item.products.discount_percentage || 0,
+                                finalPrice,
+                                image: item.products.images?.[0] || "",
+                                size: item.product_variants.size,
+                                quantity: item.quantity,
+                            };
+                        });
                         setItems(formattedItems);
                     }
                 }
@@ -95,7 +104,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
     }, [items, user]);
 
-    const addItem = async (newItem: Omit<CartItem, "id">) => {
+    const addItem = async (newItem: Omit<CartItem, "id" | "finalPrice">) => {
+        const { finalPrice } = calculatePrice(newItem.price, newItem.discountPercentage);
+        const itemWithPrice: CartItem = {
+            ...newItem,
+            id: "", // detailed later
+            finalPrice
+        };
+
         if (user) {
             try {
                 // Get or create cart
@@ -148,7 +164,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
                     if (error || !insertedItem) throw error || new Error("Insert failed");
 
-                    setItems(prev => [...prev, { ...newItem, id: (insertedItem as any).id }]);
+                    setItems(prev => [...prev, { ...itemWithPrice, id: (insertedItem as any).id }]);
                 }
                 toast.success("Added to equipment");
             } catch (error) {
@@ -165,7 +181,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                 updated[existingIdx].quantity += newItem.quantity;
                 setItems(updated);
             } else {
-                setItems(prev => [...prev, { ...newItem, id: Math.random().toString(36).substr(2, 9) }]);
+                setItems(prev => [...prev, { ...itemWithPrice, id: Math.random().toString(36).substr(2, 9) }]);
             }
             toast.success("Added to backpack (Guest mode)");
         }
@@ -212,7 +228,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setItems([]);
     };
 
-    const cartTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const cartTotal = items.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
+    const cartSavings = items.reduce((sum, item) => {
+        const savingsPerItem = item.price - item.finalPrice;
+        return sum + (savingsPerItem * item.quantity);
+    }, 0);
     const cartCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
     return (
@@ -224,6 +244,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                 updateQuantity,
                 clearCart,
                 cartTotal,
+                cartSavings,
                 cartCount,
                 isLoading,
             }}

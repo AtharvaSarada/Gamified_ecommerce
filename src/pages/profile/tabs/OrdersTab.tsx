@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import { formatPrice } from '@/utils/pricing';
 
 type Order = any; // Will use DB types later
 
@@ -142,7 +143,7 @@ export const OrdersTab: React.FC = () => {
                             <div className="text-left sm:text-right">
                                 <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Total Value</p>
                                 <p className="text-lg font-display font-bold text-primary">
-                                    ₹{order.total_amount.toLocaleString()}
+                                    {formatPrice(order.total_amount)}
                                 </p>
                             </div>
                         </div>
