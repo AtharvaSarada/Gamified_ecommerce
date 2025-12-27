@@ -34,6 +34,7 @@ export interface Product {
     base_price: number;
     discount_percentage: number;
     is_active: boolean;
+    is_hero: boolean;
     images: string[];
     deleted_at: string | null;
     created_at: string;

@@ -2,24 +2,79 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ChevronRight, Zap } from "lucide-react";
-import cyberPhantomTee from "@/assets/cyber-phantom-tee.png";
+import { supabase } from "@/lib/supabase";
+import { Product } from "@/types";
+import { useNavigate } from "react-router-dom";
+import { formatPrice } from "@/lib/utils";
 
 const glitchText = "NEW DROP";
 
 export function HeroSection() {
   const [isRevealed, setIsRevealed] = useState(false);
+  const [heroProduct, setHeroProduct] = useState<Product | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const timer = setTimeout(() => setIsRevealed(true), 500);
     return () => clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    const fetchHeroProduct = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('is_hero', true)
+          .eq('is_active', true)
+          .single();
+
+        if (error) {
+          console.error("Error fetching hero product:", error);
+          return;
+        }
+
+        if (data) {
+          setHeroProduct(data);
+        }
+      } catch (err) {
+        console.error("Unexpected error fetching hero:", err);
+      }
+    };
+
+    fetchHeroProduct();
+  }, []);
+
+  const calculatePrice = () => {
+    if (!heroProduct) return { display: "$0.00", original: null, discount: 0 };
+
+    const base = heroProduct.base_price;
+    const discount = heroProduct.discount_percentage || 0;
+
+    if (discount > 0) {
+      const discounted = base * (1 - discount / 100);
+      return {
+        display: formatPrice(discounted),
+        original: formatPrice(base),
+        discount: discount
+      };
+    }
+
+    return {
+      display: formatPrice(base),
+      original: null,
+      discount: 0
+    };
+  };
+
+  const prices = calculatePrice();
+
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20 scanlines">
       {/* Animated Background */}
       <div className="absolute inset-0 bg-gradient-dark">
         {/* Grid Pattern */}
-        <div 
+        <div
           className="absolute inset-0 opacity-20"
           style={{
             backgroundImage: `
@@ -29,7 +84,7 @@ export function HeroSection() {
             backgroundSize: '50px 50px'
           }}
         />
-        
+
         {/* Floating Particles */}
         {[...Array(20)].map((_, i) => (
           <motion.div
@@ -106,11 +161,21 @@ export function HeroSection() {
               transition={{ duration: 0.6, delay: 1 }}
               className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start"
             >
-              <Button variant="cyber" size="xl" className="group">
+              <Button
+                variant="cyber"
+                size="xl"
+                className="group"
+                onClick={() => heroProduct && navigate(`/product/${heroProduct.id}`)}
+                disabled={!heroProduct}
+              >
                 CLAIM NOW
                 <ChevronRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
               </Button>
-              <Button variant="outline" size="xl">
+              <Button
+                variant="outline"
+                size="xl"
+                onClick={() => navigate('/shop')}
+              >
                 VIEW COLLECTION
               </Button>
             </motion.div>
@@ -161,7 +226,7 @@ export function HeroSection() {
                   ease: "easeInOut",
                 }}
               />
-              
+
               {/* Product Card */}
               <motion.div
                 className="relative w-72 h-96 md:w-80 md:h-[28rem] bg-card border border-border/50 angular-card overflow-hidden"
@@ -174,26 +239,51 @@ export function HeroSection() {
               >
                 {/* Gradient Border Animation */}
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-accent/20" />
-                
+
                 {/* Product Image */}
                 <div className="absolute inset-4 flex items-center justify-center overflow-hidden">
-                  <img 
-                    src={cyberPhantomTee} 
-                    alt="Cyber Phantom Tee" 
-                    className="w-full h-full object-cover object-top"
-                  />
+                  {heroProduct ? (
+                    <img
+                      src={heroProduct.images[0]}
+                      alt={heroProduct.name}
+                      className="w-full h-full object-cover object-top"
+                    />
+                  ) : (
+                    <div className="text-muted-foreground text-center">
+                      <Zap className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                      <p>Loading Drop...</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Rarity Badge */}
-                <div className="absolute top-4 right-4 px-3 py-1 bg-secondary/20 border border-secondary/50 rounded-sm">
-                  <span className="font-display text-xs tracking-wider text-secondary">EPIC</span>
-                </div>
+                {heroProduct && (
+                  <div className="absolute top-4 right-4 px-3 py-1 bg-secondary/20 border border-secondary/50 rounded-sm">
+                    <span className="font-display text-xs tracking-wider text-secondary uppercase">
+                      {heroProduct.rarity}
+                    </span>
+                  </div>
+                )}
 
                 {/* Price Tag */}
-                <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
-                  <span className="font-display text-2xl text-foreground">$49.99</span>
-                  <span className="text-xs text-muted-foreground">23 LEFT</span>
-                </div>
+                {heroProduct && (
+                  <div className="absolute bottom-4 left-4 right-4 flex flex-col gap-1 bg-black/60 p-2 rounded backdrop-blur-sm border border-white/10">
+                    {prices.original && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground line-through decoration-destructive">{prices.original}</span>
+                        <span className="text-[10px] text-green-400 font-bold px-1.5 py-0.5 bg-green-400/10 rounded">
+                          {prices.discount}% OFF
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="font-display text-2xl text-foreground text-shadow-neon">
+                        {prices.display}
+                      </span>
+                      {/* Optional: Add "23 LEFT" logic if needed, but for now we skip dynamic stock display in Hero unless requested */}
+                    </div>
+                  </div>
+                )}
               </motion.div>
 
               {/* Floating Hexagons */}

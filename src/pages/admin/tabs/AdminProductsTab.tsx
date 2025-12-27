@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Search, Plus, Edit, Trash2, RefreshCw } from 'lucide-react';
+import { Loader2, Search, Plus, Edit, Trash2, RefreshCw, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import { ProductFormDialog } from '@/pages/admin/components/ProductFormDialog';
 import { formatPrice } from '@/lib/utils';
@@ -143,6 +143,40 @@ export const AdminProductsTab: React.FC = () => {
         }
     };
 
+    const handleSetHero = async (id: string, currentIsHero: boolean) => {
+        if (currentIsHero) return; // Already hero, do nothing
+
+        try {
+            if (accessToken) {
+                const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/set_hero_product`;
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ p_product_id: id })
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to set hero: ${response.status} ${errorText}`);
+                }
+            } else {
+                const { error } = await (supabase.rpc as any)('set_hero_product', {
+                    p_product_id: id
+                });
+                if (error) throw error;
+            }
+
+            toast.success('Hero product updated');
+            fetchProducts();
+        } catch (error: any) {
+            console.error('Error setting hero product:', error);
+            toast.error(error.message || 'Failed to set hero product');
+        }
+    };
+
     const toggleStatus = async (id: string, currentStatus: boolean) => {
         try {
             // Priority: Direct REST API Call for instant update
@@ -248,6 +282,11 @@ export const AdminProductsTab: React.FC = () => {
                                             <Badge variant={product.rarity === 'legendary' ? 'default' : 'secondary'} className="w-fit text-[10px] uppercase">
                                                 {product.rarity}
                                             </Badge>
+                                            {product.is_hero && (
+                                                <Badge className="w-fit text-[10px] uppercase bg-yellow-500/20 text-yellow-500 border-yellow-500/50 hover:bg-yellow-500/30">
+                                                    Hero
+                                                </Badge>
+                                            )}
                                         </div>
                                     </TableCell>
                                     <TableCell>
@@ -271,6 +310,15 @@ export const AdminProductsTab: React.FC = () => {
                                         <div className="flex justify-end gap-2">
                                             <Button variant="ghost" size="icon" onClick={() => { setSelectedProduct(product); setIsDialogOpen(true); }}>
                                                 <Edit className="w-4 h-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => handleSetHero(product.id, product.is_hero)}
+                                                className={product.is_hero ? "text-yellow-500 hover:text-yellow-600 hover:bg-yellow-500/10" : "text-muted-foreground hover:text-yellow-500 hover:bg-yellow-500/10"}
+                                                title="Set as Hero Product"
+                                            >
+                                                <Star className={`w-4 h-4 ${product.is_hero ? "fill-current" : ""}`} />
                                             </Button>
                                             <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => handleDelete(product.id)}>
                                                 <Trash2 className="w-4 h-4" />
