@@ -69,7 +69,7 @@ export function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
                         animate={{ x: 0 }}
                         exit={{ x: "100%" }}
                         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                        className="fixed top-0 right-0 h-full w-full sm:w-[480px] bg-background border-l border-border z-[101] flex flex-col shadow-2xl"
+                        className="fixed top-0 right-0 h-[100dvh] w-full sm:w-[480px] bg-background border-l border-border z-[101] flex flex-col shadow-2xl"
                     >
                         {/* Header */}
                         <div className="p-6 border-b border-border flex items-center justify-between bg-card/50">
@@ -92,7 +92,7 @@ export function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
                         </div>
 
                         {/* Items List */}
-                        <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto min-h-0 p-6 space-y-6 custom-scrollbar">
                             {isLoading && items.length === 0 ? (
                                 // Loading Skeleton
                                 <div className="space-y-4">
@@ -284,7 +284,7 @@ export function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
                         </div>
 
                         {/* Footer */}
-                        <div className="p-6 bg-card/30 border-t border-border space-y-4 backdrop-blur-sm">
+                        <div className="flex-none p-6 bg-background/95 border-t border-border space-y-4 backdrop-blur-md z-10 shadow-[0_-5px_20px_-10px_rgba(0,0,0,0.5)]">
                             <div className="space-y-2">
                                 <div className="flex justify-between text-xs text-muted-foreground uppercase tracking-widest">
                                     <span>Subtotal</span>
