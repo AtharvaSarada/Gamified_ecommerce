@@ -285,17 +285,24 @@ export function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
 
                         {/* Footer */}
                         <div className="flex-none p-6 bg-background/95 border-t border-border space-y-4 backdrop-blur-md z-10 shadow-[0_-5px_20px_-10px_rgba(0,0,0,0.5)]">
-                            <div className="space-y-2">
+                            <div className="space-y-3">
                                 <div className="flex justify-between text-xs text-muted-foreground uppercase tracking-widest">
                                     <span>Subtotal</span>
-                                    <span className="tabular-nums font-mono">{formatPrice(cartTotal)}</span>
+                                    {/* Show Original Price sum here */}
+                                    <span className="tabular-nums font-mono">
+                                        {formatPrice(items.reduce((acc, item) => acc + item.price * item.quantity, 0))}
+                                    </span>
                                 </div>
-                                {cartTotal >= 500 && (
+
+                                {items.some(item => item.discount_percentage > 0) && (
                                     <div className="flex justify-between text-xs text-green-500 uppercase tracking-widest font-bold">
-                                        <span>Discount Included</span>
-                                        <span>Verified</span>
+                                        <span>Discount</span>
+                                        <span className="tabular-nums font-mono">
+                                            - {formatPrice(items.reduce((acc, item) => acc + (item.price * (item.discount_percentage / 100) * item.quantity), 0))}
+                                        </span>
                                     </div>
                                 )}
+
                                 <div className="flex justify-between text-xl font-display font-black tracking-tighter uppercase italic pt-2 border-t border-border/50">
                                     <span>Total</span>
                                     <span className="text-primary neon-text tabular-nums">{formatPrice(cartTotal)}</span>
