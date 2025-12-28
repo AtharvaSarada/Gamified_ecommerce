@@ -224,15 +224,20 @@ export function CheckoutPage() {
             });
 
             if (error) {
-                console.error("Function Error Details:", { message: error.message, context: error.context });
-                let errorDetails = error.message;
-                try {
-                    const parsed = JSON.parse(error.message);
-                    if (parsed && parsed.error) errorDetails = `${parsed.error} ${parsed.details || ''}`;
-                } catch (e) {
-                    // ignore
+                console.error("Raw Function Error:", error);
+                let errorMessage = error.message;
+                // Check if we have the response object to read the body
+                if (error && typeof error === 'object' && 'context' in error && error.context instanceof Response) {
+                    try {
+                        const errorBody = await error.context.json();
+                        console.error("Parsed Edge Function Error Body:", errorBody);
+                        if (errorBody.error) errorMessage = errorBody.error;
+                        if (errorBody.details) errorMessage += ` (${errorBody.details})`;
+                    } catch (e) {
+                        console.warn("Failed to parse error response body", e);
+                    }
                 }
-                throw new Error(errorDetails || "Failed to create order");
+                throw new Error(errorMessage || "Failed to create order");
             }
 
             console.log("Order Created:", data);

@@ -11,6 +11,7 @@ import { INDIAN_STATES } from "@/data/indianStates";
 import { Loader2, Save } from "lucide-react";
 import { useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const phoneRegex = new RegExp(/^([+]?[\s0-9]+)?(\d{3}|[(]?[0-9]+[)])?([-]?[\s]?[0-9])+$/);
 
@@ -74,9 +75,46 @@ export function ShippingForm({
     const { register, handleSubmit, formState: { errors }, watch, setValue, reset } = form;
     const pinCode = watch("pinCode");
 
-    // Watch for defaultValues changes to update form
+    // DRAFT LOGIC: Load draft on mount (only for checkout mode and if no defaults provided)
     useEffect(() => {
-        if (defaultValues) {
+        if (mode === 'checkout' && (!defaultValues || Object.keys(defaultValues).length === 0)) {
+            const savedDraft = localStorage.getItem('shipping_form_draft');
+            if (savedDraft) {
+                try {
+                    const parsed = JSON.parse(savedDraft);
+                    // Only restore if user hasn't typed anything yet? Or just force it?
+                    // Let's restore.
+                    console.log("Restoring Draft", parsed);
+                    reset({
+                        ...parsed,
+                        saveAddress: false,
+                        // Ensure state is valid or undefined
+                        state: parsed.state || undefined
+                    });
+                    if (parsed.pinCode) {
+                        onPinCodeChange?.(parsed.pinCode);
+                    }
+                    toast.info("Restored your previous details from draft");
+                } catch (e) {
+                    // ignore
+                }
+            }
+        }
+    }, [mode, reset]); // Removed defaultValues from dependency to avoid loop if they change slightly, usually runs once on mount if empty.
+
+    // DRAFT LOGIC: Save draft on change
+    useEffect(() => {
+        if (mode === 'checkout') {
+            const subscription = form.watch((value) => {
+                localStorage.setItem('shipping_form_draft', JSON.stringify(value));
+            });
+            return () => subscription.unsubscribe();
+        }
+    }, [form, mode]);
+
+    // Watch for defaultValues changes to update form (e.g. loading from address book)
+    useEffect(() => {
+        if (defaultValues && Object.keys(defaultValues).length > 0) {
             reset({
                 fullName: defaultValues.fullName || "",
                 email: defaultValues.email || "",
@@ -147,7 +185,7 @@ export function ShippingForm({
                     <Label htmlFor="state">State</Label>
                     <Select
                         onValueChange={(val) => setValue("state", val as any, { shouldValidate: true })}
-                        value={watch("state")}
+                        value={watch("state") || ""}
                     >
                         <SelectTrigger>
                             <SelectValue placeholder="Select State" />

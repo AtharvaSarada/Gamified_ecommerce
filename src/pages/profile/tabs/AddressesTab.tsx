@@ -42,6 +42,11 @@ export const AddressesTab: React.FC = () => {
     };
 
     const handleAddAddress = async (data: ShippingFormData) => {
+        if (addresses.length >= 4) {
+            toast.error("Limit Reached: You can save up to 4 deployment zones.");
+            return;
+        }
+
         try {
             const { error } = await supabase.from('shipping_addresses').insert({
                 user_id: user?.id,
