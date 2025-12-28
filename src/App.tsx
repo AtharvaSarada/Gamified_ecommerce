@@ -20,6 +20,11 @@ import { ProfilePage } from "./pages/profile/ProfilePage";
 import { AdminPage } from "./pages/AdminPage";
 import { CheckoutPage } from "./pages/CheckoutPage";
 import { validateEnv } from "./lib/config";
+import CancellationRefundPolicy from "./pages/policies/CancellationRefundPolicy";
+import ShippingPolicy from "./pages/policies/ShippingPolicy";
+import TermsAndConditions from "./pages/policies/TermsAndConditions";
+import PrivacyPolicy from "./pages/policies/PrivacyPolicy";
+import ContactPage from "./pages/ContactPage";
 
 // Validate environment variables on startup
 validateEnv();
@@ -67,6 +72,13 @@ const App = () => (
                     </AdminRoute>
                   }
                 />
+
+                {/* Policy Routes */}
+                <Route path="/policies/cancellation-refund" element={<CancellationRefundPolicy />} />
+                <Route path="/policies/shipping" element={<ShippingPolicy />} />
+                <Route path="/policies/terms" element={<TermsAndConditions />} />
+                <Route path="/policies/privacy" element={<PrivacyPolicy />} />
+                <Route path="/contact" element={<ContactPage />} />
 
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />

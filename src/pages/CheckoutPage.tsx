@@ -7,9 +7,14 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 
 export function CheckoutPage() {
-    const { items, cartTotal, cartSavings } = useCart();
+    const { items, cartTotal } = useCart();
     const shippingCost = 0; // Free shipping for now based on prompt examples
     const finalTotal = cartTotal + shippingCost;
+
+    // Calculate original subtotal (without discounts)
+    const originalSubtotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+    // Calculate total savings
+    const totalSavings = items.reduce((acc, item) => acc + (item.price * (item.discount_percentage / 100) * item.quantity), 0);
 
     return (
         <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -43,38 +48,41 @@ export function CheckoutPage() {
 
                                 {/* Items */}
                                 <div className="space-y-4 mb-6">
-                                    {items.map((item) => (
-                                        <div key={item.id} className="flex justify-between items-start text-sm">
-                                            <div className="flex-1 mr-4">
-                                                <span className="font-medium">{item.name}</span>
-                                                <div className="text-xs text-muted-foreground">
-                                                    Size: {item.size} | Qty: {item.quantity}
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="font-bold text-primary">
-                                                    {formatPrice(item.finalPrice * item.quantity)}
-                                                </div>
-                                                {item.discountPercentage > 0 && (
-                                                    <div className="text-xs text-muted-foreground line-through">
-                                                        {formatPrice(item.price * item.quantity)}
+                                    {items.map((item) => {
+                                        const discountedPrice = item.price * (1 - (item.discount_percentage || 0) / 100);
+                                        return (
+                                            <div key={item.id} className="flex justify-between items-start text-sm">
+                                                <div className="flex-1 mr-4">
+                                                    <span className="font-medium">{item.name}</span>
+                                                    <div className="text-xs text-muted-foreground">
+                                                        Size: {item.size} | Qty: {item.quantity}
                                                     </div>
-                                                )}
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="font-bold text-primary">
+                                                        {formatPrice(discountedPrice * item.quantity)}
+                                                    </div>
+                                                    {(item.discount_percentage || 0) > 0 && (
+                                                        <div className="text-xs text-muted-foreground line-through">
+                                                            {formatPrice(item.price * item.quantity)}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
 
                                 <div className="border-t border-border my-4 pt-4 space-y-2 text-sm">
                                     <div className="flex justify-between">
                                         <span className="text-muted-foreground uppercase tracking-wider">Subtotal</span>
-                                        <span>{formatPrice(cartTotal)}</span>
+                                        <span>{formatPrice(originalSubtotal)}</span>
                                     </div>
 
-                                    {cartSavings > 0 && (
+                                    {totalSavings > 0 && (
                                         <div className="flex justify-between text-green-400">
                                             <span className="uppercase tracking-wider">Discount</span>
-                                            <span>-{formatPrice(cartSavings)}</span>
+                                            <span>-{formatPrice(totalSavings)}</span>
                                         </div>
                                     )}
 

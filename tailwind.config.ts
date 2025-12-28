@@ -87,11 +87,11 @@ export default {
           to: { height: "0" },
         },
         "reveal-hex": {
-          "0%": { 
+          "0%": {
             clipPath: "polygon(50% 50%, 50% 50%, 50% 50%, 50% 50%, 50% 50%, 50% 50%)",
             opacity: "0"
           },
-          "100%": { 
+          "100%": {
             clipPath: "polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)",
             opacity: "1"
           }
@@ -105,10 +105,10 @@ export default {
           "100%": { opacity: "1" }
         },
         "glow-pulse": {
-          "0%, 100%": { 
+          "0%, 100%": {
             boxShadow: "0 0 5px hsl(var(--primary) / 0.5), 0 0 10px hsl(var(--primary) / 0.3)"
           },
-          "50%": { 
+          "50%": {
             boxShadow: "0 0 20px hsl(var(--primary) / 0.8), 0 0 40px hsl(var(--primary) / 0.5)"
           }
         },
@@ -143,5 +143,5 @@ export default {
       }
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
 } satisfies Config;
