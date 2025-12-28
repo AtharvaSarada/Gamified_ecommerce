@@ -37,10 +37,11 @@ export function CheckoutPage() {
                 return;
             }
 
-            // Rule 3: COD & < 1000 -> Charge (Mocked for now, implies ShipRocket API call)
-            // TODO: Replace with real check-serviceability Edge Function call
+            // Rule 3: COD & < 1000 -> Charge (Mocked for now)
+            // Default 49 until PIN code check confirms otherwise
+            // Only apply if we haven't explicitly failed serviceability
             if (isServiceable !== false) {
-                setShippingCost(49); // Standard fallback
+                setShippingCost(49);
             }
         };
         calculateShipping();
@@ -48,10 +49,11 @@ export function CheckoutPage() {
 
     const handlePinCodeChange = async (pinCode: string) => {
         setIsCheckingServiceability(true);
-        // Mock API Call
+        // Mock API Call - Replace with ShipRocket Serviceability in Phase 2
         try {
             await new Promise(resolve => setTimeout(resolve, 1000));
             // Simulate mock serviceable PINs (all for now)
+            // In real app: call Edge Function checking ShipRocket
             setIsServiceable(true);
             toast.success("Delivery available to this PIN");
         } catch (error) {
@@ -75,9 +77,6 @@ export function CheckoutPage() {
 
         setIsProcessing(true);
         try {
-            // Placeholder: Call create-order Edge Function
-            // await supabase.functions.invoke('create-order', { ... })
-
             console.log("Placing Order:", {
                 items,
                 shipping: formData,
@@ -85,14 +84,14 @@ export function CheckoutPage() {
                 total: cartTotal + shippingCost
             });
 
-            // Simulate success
+            // Simulate success for Phase 1 Validation
             await new Promise(resolve => setTimeout(resolve, 1500));
 
             if (paymentMethod === 'prepaid') {
-                // Initialize Razorpay
-                toast.info("Redirecting to Payment Gateway...");
+                // Initialize Razorpay (Phase 2)
+                toast.info("Redirecting to Payment Gateway... (Phase 2 Logic)");
             } else {
-                toast.success("Order Placed Successfully!");
+                toast.success("Order Placed Successfully! (COD)");
                 // navigate('/order-confirmation/123');
             }
 
@@ -242,10 +241,7 @@ export function CheckoutPage() {
                                 <Button
                                     className="w-full mt-6 bg-primary hover:bg-primary/90 text-primary-foreground font-display font-black italic text-lg tracking-widest py-8 angular-btn group"
                                     disabled={isProcessing || (paymentMethod === 'cod' && !isServiceable)}
-                                    // Trigger form submission via ID hack or just ref logic?
-                                    // Actually, standard is to put button inside form. 
-                                    // But here form is separate. 
-                                    // We will use form="shipping-form" if we ID the form.
+                                    // Trigger form submission via ID hack since Button is outside Form
                                     onClick={() => document.getElementById('shipping-form-submit')?.click()}
                                 >
                                     {isProcessing ? (
