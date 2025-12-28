@@ -103,6 +103,49 @@ export interface CartItemWithProduct {
     variant: ProductVariant;
 }
 
+// ... existing types
+export interface ShippingAddress {
+    fullName: string;
+    phone: string;
+    email: string; // for guest
+    addressLine1: string;
+    addressLine2?: string;
+    city: string;
+    state: string;
+    pinCode: string;
+}
+
+export interface Order {
+    id: string;
+    user_id: string | null;
+    order_number: string;
+    status: OrderStatus;
+    subtotal: number;
+    discount_amount: number;
+    shipping_cost: number;
+    total_amount: number;
+    payment_status: PaymentStatus;
+    payment_provider: 'stripe' | 'razorpay' | null;
+    payment_id: string | null;
+    shipping_address_id: string | null;
+    shipping_address: ShippingAddress; // JSONB
+    tracking_number: string | null;
+
+    // New fields
+    guest_email: string | null;
+    guest_phone: string | null;
+    razorpay_order_id: string | null;
+    razorpay_payment_id: string | null;
+    courier_name: string | null;
+    awb_number: string | null;
+    estimated_delivery: string | null;
+    invoice_url: string | null;
+
+    created_at: string;
+    updated_at: string;
+}
+
 export type DiscountValidation =
     | { valid: true; discount_amount: number }
     | { valid: false; error: string };
+
