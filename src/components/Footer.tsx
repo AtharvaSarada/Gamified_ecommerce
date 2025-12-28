@@ -1,23 +1,20 @@
 import { Hexagon, Twitter, Instagram, Youtube, DiscIcon as Discord } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const footerLinks = {
   shop: [
-    { name: "New Drops", href: "#drops" },
-    { name: "Regular Fit", href: "#regular" },
-    { name: "Oversized", href: "#oversized" },
-    { name: "Accessories", href: "#accessories" },
+    { name: "All Products", href: "/shop" },
+    { name: "Regular Fit", href: "/shop?category=regular" },
+    { name: "Oversized", href: "/shop?category=oversized" },
   ],
   support: [
-    { name: "Size Guide", href: "#size" },
-    { name: "Shipping", href: "#shipping" },
-    { name: "Returns", href: "#returns" },
-    { name: "FAQ", href: "#faq" },
+    { name: "Contact Us", href: "/contact" },
+    { name: "Shipping Policy", href: "/policies/shipping" },
+    { name: "Cancellation & Refund", href: "/policies/cancellation-refund" },
   ],
   company: [
-    { name: "About Us", href: "#about" },
-    { name: "Contact", href: "#contact" },
-    { name: "Careers", href: "#careers" },
-    { name: "Press", href: "#press" },
+    { name: "Terms & Conditions", href: "/policies/terms" },
+    { name: "Privacy Policy", href: "/policies/privacy" },
   ],
 };
 
@@ -35,7 +32,7 @@ export function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
           {/* Brand */}
           <div className="col-span-2 md:col-span-2">
-            <a href="/" className="flex items-center gap-2 mb-4 group">
+            <Link to="/" className="flex items-center gap-2 mb-4 group">
               <div className="relative">
                 <Hexagon className="w-10 h-10 text-primary transition-all duration-300 group-hover:drop-shadow-[0_0_10px_hsl(var(--primary))]" />
                 <span className="absolute inset-0 flex items-center justify-center text-sm font-display font-bold text-primary">
@@ -45,7 +42,7 @@ export function Footer() {
               <span className="font-display font-bold text-xl tracking-wider">
                 LOOT DROP
               </span>
-            </a>
+            </Link>
             <p className="text-muted-foreground text-sm mb-6 max-w-xs">
               Gaming-inspired streetwear for the next generation of players. Level up your style.
             </p>
@@ -70,9 +67,9 @@ export function Footer() {
             <ul className="space-y-2">
               {footerLinks.shop.map((link) => (
                 <li key={link.name}>
-                  <a href={link.href} className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                  <Link to={link.href} className="text-sm text-muted-foreground hover:text-primary transition-colors">
                     {link.name}
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -83,9 +80,9 @@ export function Footer() {
             <ul className="space-y-2">
               {footerLinks.support.map((link) => (
                 <li key={link.name}>
-                  <a href={link.href} className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                  <Link to={link.href} className="text-sm text-muted-foreground hover:text-primary transition-colors">
                     {link.name}
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -96,9 +93,9 @@ export function Footer() {
             <ul className="space-y-2">
               {footerLinks.company.map((link) => (
                 <li key={link.name}>
-                  <a href={link.href} className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                  <Link to={link.href} className="text-sm text-muted-foreground hover:text-primary transition-colors">
                     {link.name}
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -111,12 +108,12 @@ export function Footer() {
             © 2024 Loot Drop Apparel. All rights reserved.
           </p>
           <div className="flex gap-6">
-            <a href="#privacy" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+            <Link to="/policies/privacy" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
               Privacy Policy
-            </a>
-            <a href="#terms" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+            </Link>
+            <Link to="/policies/terms" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
               Terms of Service
-            </a>
+            </Link>
           </div>
         </div>
       </div>
