@@ -19,7 +19,9 @@ import { AdminRoute } from "./components/auth/AdminRoute";
 import { ProfilePage } from "./pages/profile/ProfilePage";
 import { AdminPage } from "./pages/AdminPage";
 import { CheckoutPage } from "./pages/CheckoutPage";
+import { OrderSuccessPage } from "./pages/OrderSuccessPage";
 import { validateEnv } from "./lib/config";
+
 import CancellationRefundPolicy from "./pages/policies/CancellationRefundPolicy";
 import ShippingPolicy from "./pages/policies/ShippingPolicy";
 import TermsAndConditions from "./pages/policies/TermsAndConditions";
@@ -47,7 +49,9 @@ const App = () => (
                 <Route path="/shop" element={<ShopPage />} />
                 <Route path="/product/:id" element={<ProductDetailsPage />} />
                 <Route path="/checkout" element={<CheckoutPage />} />
+                <Route path="/order-success" element={<OrderSuccessPage />} />
                 <Route path="/login" element={<LoginPage />} />
+
                 <Route path="/signup" element={<SignupPage />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />

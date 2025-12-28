@@ -10,10 +10,13 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import useRazorpay from "react-razorpay";
 
 export function CheckoutPage() {
-    const { items, cartTotal } = useCart();
+    const { items, cartTotal, clearCart } = useCart();
     const navigate = useNavigate();
+    const [Razorpay] = useRazorpay();
 
     const [shippingData, setShippingData] = useState<ShippingFormData | null>(null);
     const [paymentMethod, setPaymentMethod] = useState<'prepaid' | 'cod'>('prepaid');
@@ -37,9 +40,7 @@ export function CheckoutPage() {
                 return;
             }
 
-            // Rule 3: COD & < 1000 -> Charge (Mocked for now)
-            // Default 49 until PIN code check confirms otherwise
-            // Only apply if we haven't explicitly failed serviceability
+            // Rule 3: COD & < 1000 -> Charge 
             if (isServiceable !== false) {
                 setShippingCost(49);
             }
@@ -47,13 +48,12 @@ export function CheckoutPage() {
         calculateShipping();
     }, [paymentMethod, cartTotal, isServiceable]);
 
+    // Serviceability Check (Mock for now, easy to swap with ShipRocket API)
     const handlePinCodeChange = async (pinCode: string) => {
         setIsCheckingServiceability(true);
-        // Mock API Call - Replace with ShipRocket Serviceability in Phase 2
         try {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            // Simulate mock serviceable PINs (all for now)
-            // In real app: call Edge Function checking ShipRocket
+            await new Promise(resolve => setTimeout(resolve, 800));
+            // In Production: await supabase.functions.invoke('check-serviceability', { body: { pincode: pinCode } })
             setIsServiceable(true);
             toast.success("Delivery available to this PIN");
         } catch (error) {
@@ -70,6 +70,11 @@ export function CheckoutPage() {
     };
 
     const handlePlaceOrder = async (formData: ShippingFormData) => {
+        if (items.length === 0) {
+            toast.error("Your cart is empty!");
+            return;
+        }
+
         if (!isServiceable && paymentMethod === 'cod') {
             toast.error("Please verify PIN code serviceability first");
             return;
@@ -77,29 +82,94 @@ export function CheckoutPage() {
 
         setIsProcessing(true);
         try {
-            console.log("Placing Order:", {
-                items,
-                shipping: formData,
-                payment: paymentMethod,
-                total: cartTotal + shippingCost
+            // Prepare Payload
+            const payload = {
+                cart_items: items.map(item => ({
+                    variant_id: item.variantId, // Ensure mapped correctly from CartContext
+                    quantity: item.quantity,
+                    price: item.price // Validation happens on backend
+                })),
+                shipping_address_id: null, // Guest checkout for now
+                payment_provider: paymentMethod === 'prepaid' ? 'razorpay' : 'cod',
+                guest_info: {
+                    email: formData.email,
+                    phone: formData.phone,
+                    address: {
+                        fullName: formData.fullName,
+                        addressLine1: formData.addressLine1,
+                        addressLine2: formData.addressLine2,
+                        city: formData.city,
+                        state: formData.state,
+                        pinCode: formData.pinCode,
+                        country: 'IN'
+                    }
+                },
+                shipping_cost: shippingCost
+            };
+
+            console.log("Creating Order via Edge Function...", payload);
+
+            // Call Supabase Edge Function
+            const { data, error } = await supabase.functions.invoke('create-order', {
+                body: payload
             });
 
-            // Simulate success for Phase 1 Validation
-            await new Promise(resolve => setTimeout(resolve, 1500));
-
-            if (paymentMethod === 'prepaid') {
-                // Initialize Razorpay (Phase 2)
-                toast.info("Redirecting to Payment Gateway... (Phase 2 Logic)");
-            } else {
-                toast.success("Order Placed Successfully! (COD)");
-                // navigate('/order-confirmation/123');
+            if (error) {
+                console.error("Function Error:", error);
+                throw new Error(error.message || "Failed to create order");
             }
 
-        } catch (error) {
-            toast.error("Failed to place order. Please try again.");
-        } finally {
-            setIsProcessing(false);
+            console.log("Order Created:", data);
+
+            if (paymentMethod === 'prepaid') {
+                // Initialize Razorpay Payment
+                handleRazorpayPayment(data);
+            } else {
+                // COD Success
+                toast.success("Order Placed Successfully!");
+                clearCart();
+                navigate(\`/order-success?orderId=\${data.order_id}\`);
+            }
+            
+        } catch (error: any) {
+            console.error("Checkout Error:", error);
+            toast.error(error.message || "Failed to place order. Please try again.");
+            setIsProcessing(false); // Stop loader only on error, keep strictly if redirecting
         }
+    };
+
+    const handleRazorpayPayment = (orderData: any) => {
+        const options = {
+            key: orderData.key, // From Edge Function response
+            amount: orderData.amount,
+            currency: orderData.currency,
+            name: "Loot Drop",
+            description: "Gaming Gear Order",
+            order_id: orderData.razorpay_order_id,
+            handler: async (response: any) => {
+                console.log("Payment Success:", response);
+                toast.success("Payment Successful!");
+                clearCart();
+                navigate(\`/order-success?orderId=\${orderData.order_id}\`);
+            },
+            prefill: {
+                name: shippingData?.fullName,
+                email: shippingData?.email,
+                contact: shippingData?.phone,
+            },
+            theme: {
+                color: "#00E5FF", // Neon Cyan
+            },
+            modal: {
+                ondismiss: () => {
+                    setIsProcessing(false);
+                    toast.info("Payment Cancelled");
+                }
+            }
+        };
+
+        const rzp = new Razorpay(options);
+        rzp.open();
     };
 
     // Derived Totals
@@ -126,7 +196,7 @@ export function CheckoutPage() {
                                     <Truck className="w-6 h-6 text-primary" />
                                     Shipping Details
                                 </h2>
-                                <ShippingForm
+                                <ShippingForm 
                                     onSubmit={handleFormSubmit}
                                     onPinCodeChange={handlePinCodeChange}
                                     isServiceable={isServiceable}
@@ -140,15 +210,15 @@ export function CheckoutPage() {
                                     <CreditCard className="w-6 h-6 text-primary" />
                                     Payment Method
                                 </h2>
-                                <RadioGroup
-                                    value={paymentMethod}
+                                <RadioGroup 
+                                    value={paymentMethod} 
                                     onValueChange={(val) => setPaymentMethod(val as 'prepaid' | 'cod')}
                                     className="grid grid-cols-1 md:grid-cols-2 gap-4"
                                 >
                                     {/* Prepaid - Razorpay */}
                                     <div>
                                         <RadioGroupItem value="prepaid" id="prepaid" className="peer sr-only" />
-                                        <Label
+                                        <Label 
                                             htmlFor="prepaid"
                                             className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:text-primary cursor-pointer transition-all"
                                         >
@@ -161,8 +231,8 @@ export function CheckoutPage() {
                                     {/* COD */}
                                     <div>
                                         <RadioGroupItem value="cod" id="cod" className="peer sr-only" />
-                                        <Label
-                                            htmlFor="cod"
+                                        <Label 
+                                            htmlFor="cod" 
                                             className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:text-primary cursor-pointer transition-all"
                                         >
                                             <span className="text-lg font-bold uppercase italic">Cash on Delivery</span>
@@ -221,7 +291,7 @@ export function CheckoutPage() {
                                         <span className="text-muted-foreground uppercase tracking-wider">Shipping</span>
                                         <span>{shippingCost === 0 ? "FREE" : formatPrice(shippingCost)}</span>
                                     </div>
-
+                                    
                                     {paymentMethod === 'cod' && shippingCost > 0 && (
                                         <div className="text-xs text-muted-foreground text-right italic">
                                             (Free on orders above ₹1000 or prepaid)
@@ -238,10 +308,9 @@ export function CheckoutPage() {
                                     </div>
                                 </div>
 
-                                <Button
+                                <Button 
                                     className="w-full mt-6 bg-primary hover:bg-primary/90 text-primary-foreground font-display font-black italic text-lg tracking-widest py-8 angular-btn group"
                                     disabled={isProcessing || (paymentMethod === 'cod' && !isServiceable)}
-                                    // Trigger form submission via ID hack since Button is outside Form
                                     onClick={() => document.getElementById('shipping-form-submit')?.click()}
                                 >
                                     {isProcessing ? (
