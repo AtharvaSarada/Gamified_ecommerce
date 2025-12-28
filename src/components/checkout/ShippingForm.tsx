@@ -140,7 +140,16 @@ export function ShippingForm({
                 {/* PIN Code */}
                 <div className="space-y-2">
                     <Label htmlFor="pinCode">PIN Code</Label>
-                    <Input id="pinCode" type="number" maxLength={6} {...register("pinCode")} placeholder="400001" />
+                    <Input
+                        id="pinCode"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={6}
+                        {...register("pinCode")}
+                        placeholder="400001"
+                    />
+
                     {errors.pinCode && <p className="text-red-500 text-xs">{errors.pinCode.message}</p>}
 
                     {/* Serviceability Status */}
