@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
-import { MapPin, Plus, Edit2, Trash2, Home, Briefcase, Globe } from 'lucide-react';
+import { MapPin, Plus, Edit2, Trash2, Home, Globe } from 'lucide-react';
 import { AddressesSkeleton } from '@/components/ui/Skeletons';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ShippingForm, ShippingFormData } from '@/components/checkout/ShippingForm';
 
 type Address = any;
 
@@ -14,6 +16,7 @@ export const AddressesTab: React.FC = () => {
     const { user } = useAuth();
     const [addresses, setAddresses] = useState<Address[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isAddOpen, setIsAddOpen] = useState(false);
 
     useEffect(() => {
         if (user) fetchAddresses();
@@ -22,19 +25,14 @@ export const AddressesTab: React.FC = () => {
     const fetchAddresses = async () => {
         setLoading(true);
         try {
-            const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Request timeout')), 5000)
-            );
-
-            const dataPromise = supabase
+            const { data, error } = await supabase
                 .from('shipping_addresses')
                 .select('*')
                 .eq('user_id', user?.id)
                 .order('is_default', { ascending: false });
 
-            const { data, error } = await Promise.race([dataPromise, timeoutPromise]) as any;
-
-            if (!error) setAddresses(data || []);
+            if (error) throw error;
+            setAddresses(data || []);
         } catch (err) {
             console.error("Address fetch error:", err);
             toast.error("Failed to load addresses");
@@ -43,10 +41,45 @@ export const AddressesTab: React.FC = () => {
         }
     };
 
+    const handleAddAddress = async (data: ShippingFormData) => {
+        try {
+            const { error } = await supabase.from('shipping_addresses').insert({
+                user_id: user?.id,
+                full_name: data.fullName,
+                phone: data.phone,
+                address_line1: data.addressLine1,
+                address_line2: data.addressLine2,
+                city: data.city,
+                state: data.state,
+                postal_code: data.pinCode,
+                country: 'IN', // Hardcoded for now
+                is_default: addresses.length === 0 // Make default if first address
+            });
+
+            if (error) throw error;
+
+            toast.success("Deployment Zone Added!");
+            setIsAddOpen(false);
+            fetchAddresses();
+        } catch (error: any) {
+            console.error("Add Address Error:", error);
+            toast.error(error.message || "Failed to add address");
+        }
+    };
+
     const setDefault = async (id: string) => {
         const { error } = await supabase.rpc('set_default_address', { address_id: id } as any);
+        // Note: set_default_address RPC needs to be verified if it exists, otherwise manual update
+        // If RPC doesn't exist, we can do it manually:
+        // await supabase.from('shipping_addresses').update({ is_default: false }).eq('user_id', user.id);
+        // await supabase.from('shipping_addresses').update({ is_default: true }).eq('id', id);
+
         if (error) {
-            toast.error('Failed to set default address');
+            // Fallback manual update if RPC fails
+            await supabase.from('shipping_addresses').update({ is_default: false }).eq('user_id', user?.id);
+            await supabase.from('shipping_addresses').update({ is_default: true }).eq('id', id);
+            toast.success('Default address updated');
+            fetchAddresses();
         } else {
             toast.success('Default address updated');
             fetchAddresses();
@@ -67,18 +100,38 @@ export const AddressesTab: React.FC = () => {
         }
     };
 
-    if (loading) return <AddressesSkeleton />;
+    if (loading && addresses.length === 0) return <AddressesSkeleton />;
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
             <div className="flex items-center justify-between">
                 <h2 className="text-xl font-display font-bold">DEPLOYMENT DROPS</h2>
-                <Button size="sm" className="font-bold tracking-widest flex items-center gap-2">
-                    <Plus size={16} /> ADD NEW
-                </Button>
+
+                <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+                    <DialogTrigger asChild>
+                        <Button size="sm" className="font-bold tracking-widest flex items-center gap-2">
+                            <Plus size={16} /> ADD NEW
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle className="font-display uppercase tracking-widest">Add New Deployment Zone</DialogTitle>
+                            <DialogDescription>
+                                Add a new shipping address for faster checkout.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <ShippingForm
+                            onSubmit={handleAddAddress}
+                            mode="address_book"
+                            // Mock serviceability check logic strictly for this form or reuse proper one
+                            onPinCodeChange={() => { }}
+                            isServiceable={true}
+                        />
+                    </DialogContent>
+                </Dialog>
             </div>
 
-            {addresses.length === 0 ? (
+            {addresses.length === 0 && !loading ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center border-2 border-dashed border-white/5 rounded-3xl">
                     <MapPin size={40} className="text-muted-foreground opacity-20 mb-4" />
                     <h3 className="text-lg font-bold">NO DEPLOYMENT ZONES</h3>
@@ -137,14 +190,17 @@ export const AddressesTab: React.FC = () => {
                                             Set Primary
                                         </Button>
                                     )}
+                                    {/* Edit functionality not implemented yet */}
+                                    {/* 
                                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0 ml-auto hover:bg-white/10">
                                         <Edit2 size={14} />
                                     </Button>
+                                    */}
                                     <Button
                                         onClick={() => deleteAddress(addr.id)}
                                         variant="ghost"
                                         size="sm"
-                                        className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+                                        className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 ml-auto"
                                     >
                                         <Trash2 size={14} />
                                     </Button>

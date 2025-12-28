@@ -2,11 +2,13 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { useCart } from "@/contexts/CartContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { formatPrice } from "@/utils/pricing";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Loader2, CreditCard, Truck } from "lucide-react";
+import { ArrowRight, Loader2, CreditCard, Truck, MapPin } from "lucide-react";
 import { ShippingForm, ShippingFormData } from "@/components/checkout/ShippingForm";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -14,6 +16,7 @@ import { supabase } from "@/lib/supabase";
 
 export function CheckoutPage() {
     const { items, cartTotal, clearCart } = useCart();
+    const { user } = useAuth();
     const navigate = useNavigate();
 
     const [shippingData, setShippingData] = useState<ShippingFormData | null>(null);
@@ -23,22 +26,82 @@ export function CheckoutPage() {
     const [isCheckingServiceability, setIsCheckingServiceability] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
 
+    // Address Book Logic
+    const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
+    const [selectedAddressId, setSelectedAddressId] = useState<string>('new');
+    const [formDefaultValues, setFormDefaultValues] = useState<Partial<ShippingFormData>>({});
+
+    // Fetch Saved Addresses
+    useEffect(() => {
+        if (user) {
+            const fetchAddresses = async () => {
+                const { data, error } = await supabase
+                    .from('shipping_addresses')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .order('is_default', { ascending: false });
+
+                if (data && data.length > 0) {
+                    setSavedAddresses(data);
+                    // Automatically select default address
+                    const defaultAddr = data.find((a: any) => a.is_default) || data[0];
+                    setSelectedAddressId(defaultAddr.id);
+                    setFormDefaultValues({
+                        fullName: defaultAddr.full_name,
+                        phone: defaultAddr.phone,
+                        addressLine1: defaultAddr.address_line1,
+                        addressLine2: defaultAddr.address_line2 || "",
+                        city: defaultAddr.city,
+                        state: defaultAddr.state,
+                        pinCode: defaultAddr.postal_code,
+                        email: user.email || ""
+                    });
+                    // Trigger serviceability check for default address
+                    handlePinCodeChange(defaultAddr.postal_code);
+                }
+            };
+            fetchAddresses();
+        }
+    }, [user]);
+
+    // Handle Address Selection Change
+    const handleAddressChange = (value: string) => {
+        setSelectedAddressId(value);
+        if (value === 'new') {
+            setFormDefaultValues({
+                fullName: "", phone: "", addressLine1: "", addressLine2: "", city: "", state: undefined, pinCode: "", email: user?.email || ""
+            });
+            setIsServiceable(null);
+        } else {
+            const addr = savedAddresses.find(a => a.id === value);
+            if (addr) {
+                setFormDefaultValues({
+                    fullName: addr.full_name,
+                    phone: addr.phone,
+                    addressLine1: addr.address_line1,
+                    addressLine2: addr.address_line2 || "",
+                    city: addr.city,
+                    state: addr.state,
+                    pinCode: addr.postal_code,
+                    email: user?.email || ""
+                });
+                // Check serviceability for selected address
+                handlePinCodeChange(addr.postal_code);
+            }
+        }
+    };
+
     // Business Logic: Free Shipping Calculation
     useEffect(() => {
         const calculateShipping = async () => {
-            // Rule 1: Free if Prepaid
             if (paymentMethod === 'prepaid') {
                 setShippingCost(0);
                 return;
             }
-
-            // Rule 2: Free if Total >= 1000
             if (cartTotal >= 1000) {
                 setShippingCost(0);
                 return;
             }
-
-            // Rule 3: COD & < 1000 -> Charge 
             if (isServiceable !== false) {
                 setShippingCost(49);
             }
@@ -47,14 +110,12 @@ export function CheckoutPage() {
     }, [paymentMethod, cartTotal, isServiceable]);
 
     // Serviceability Check
-    // FIXED: Wrapped in useCallback to prevent infinite loop
     const handlePinCodeChange = useCallback(async (pinCode: string) => {
         setIsCheckingServiceability(true);
         try {
             await new Promise(resolve => setTimeout(resolve, 800));
-            // In Production: await supabase.functions.invoke('check-serviceability', { body: { pincode: pinCode } })
+            // In Production: check serviceability API
             setIsServiceable(true);
-            // Added distinct ID to avoid toast pile-up
             toast.success("Delivery available to this PIN", { id: 'pincode-check' });
         } catch (error) {
             setIsServiceable(false);
@@ -69,7 +130,6 @@ export function CheckoutPage() {
         handlePlaceOrder(data);
     };
 
-    // Manual Script Loader for Razorpay
     const loadRazorpayScript = () => {
         return new Promise((resolve) => {
             if (document.getElementById('razorpay-checkout-js')) {
@@ -98,8 +158,34 @@ export function CheckoutPage() {
 
         setIsProcessing(true);
 
+        // Helper: Save Address if requested
+        const saveAddressIfNeeded = async () => {
+            if (formData.saveAddress && user) {
+                try {
+                    await supabase.from('shipping_addresses').insert({
+                        user_id: user.id,
+                        full_name: formData.fullName,
+                        phone: formData.phone,
+                        address_line1: formData.addressLine1,
+                        address_line2: formData.addressLine2,
+                        city: formData.city,
+                        state: formData.state,
+                        postal_code: formData.pinCode,
+                        country: 'IN',
+                        is_default: savedAddresses.length === 0 // Make default if first address
+                    });
+                    // We don't block order placement if autosave fails, just log it
+                    console.log("Address saved to deployment zones");
+                } catch (e) {
+                    console.error("Failed to save address", e);
+                }
+            }
+        };
+
         try {
-            // 1. Load Razorpay Script FIRST if prepaid (to fail early if network issue)
+            await saveAddressIfNeeded();
+
+            // 1. Load Razorpay Script FIRST if prepaid
             if (paymentMethod === 'prepaid') {
                 const isLoaded = await loadRazorpayScript();
                 if (!isLoaded) {
@@ -114,7 +200,7 @@ export function CheckoutPage() {
                     quantity: item.quantity,
                     price: item.price
                 })),
-                shipping_address_id: null,
+                shipping_address_id: selectedAddressId !== 'new' ? selectedAddressId : null,
                 payment_provider: paymentMethod === 'prepaid' ? 'razorpay' : 'cod',
                 guest_info: {
                     email: formData.email,
@@ -132,16 +218,21 @@ export function CheckoutPage() {
                 shipping_cost: shippingCost
             };
 
-            console.log("Creating Order via Edge Function...", payload);
-
             // 3. Call Supabase Edge Function
             const { data, error } = await supabase.functions.invoke('create-order', {
                 body: payload
             });
 
             if (error) {
-                console.error("Function Error:", error);
-                throw new Error(error.message || "Failed to create order");
+                console.error("Function Error Details:", { message: error.message, context: error.context });
+                let errorDetails = error.message;
+                try {
+                    const parsed = JSON.parse(error.message);
+                    if (parsed && parsed.error) errorDetails = `${parsed.error} ${parsed.details || ''}`;
+                } catch (e) {
+                    // ignore
+                }
+                throw new Error(errorDetails || "Failed to create order");
             }
 
             console.log("Order Created:", data);
@@ -155,9 +246,7 @@ export function CheckoutPage() {
                     name: "Loot Drop",
                     description: "Gaming Gear Order",
                     order_id: data.razorpay_order_id,
-                    // Handler for Success
                     handler: async function (response: any) {
-                        console.log("Payment Success:", response);
                         toast.success("Payment Successful!");
                         clearCart();
                         navigate(`/order-success?orderId=${data.order_id}`);
@@ -168,7 +257,7 @@ export function CheckoutPage() {
                         contact: formData.phone,
                     },
                     theme: {
-                        color: "#00E5FF", // Neon Cyan
+                        color: "#00E5FF",
                     },
                     modal: {
                         ondismiss: function () {
@@ -178,16 +267,12 @@ export function CheckoutPage() {
                     }
                 };
 
-                // Initialize Razorpay
                 const rzp = new (window as any).Razorpay(options);
-
-                // Handler for Failure
                 rzp.on('payment.failed', function (response: any) {
                     console.error("Payment Failed", response.error);
                     toast.error(`Payment Failed: ${response.error.description}`);
                     setIsProcessing(false);
                 });
-
                 rzp.open();
 
             } else {
@@ -228,11 +313,39 @@ export function CheckoutPage() {
                                     <Truck className="w-6 h-6 text-primary" />
                                     Shipping Details
                                 </h2>
+
+                                {/* Address Book Selection */}
+                                {savedAddresses.length > 0 && (
+                                    <div className="mb-6">
+                                        <Label className="mb-2 block text-muted-foreground uppercase text-xs tracking-wider">Load from Deployment Zones</Label>
+                                        <Select value={selectedAddressId} onValueChange={handleAddressChange}>
+                                            <SelectTrigger className="w-full">
+                                                <SelectValue placeholder="Select a saved address" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="new">
+                                                    <div className="flex items-center gap-2 font-bold text-primary">
+                                                        <MapPin size={14} /> Enter New Address
+                                                    </div>
+                                                </SelectItem>
+                                                {savedAddresses.map((addr) => (
+                                                    <SelectItem key={addr.id} value={addr.id}>
+                                                        <span className="font-medium">{addr.full_name}</span> - {addr.city}, {addr.postal_code}
+                                                        {addr.is_default && <span className="ml-2 text-xs text-primary bg-primary/10 px-1 rounded">DEFAULT</span>}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                )}
+
                                 <ShippingForm
                                     onSubmit={handleFormSubmit}
                                     onPinCodeChange={handlePinCodeChange}
                                     isServiceable={isServiceable}
                                     isLoading={isCheckingServiceability}
+                                    defaultValues={formDefaultValues}
+                                    mode="checkout"
                                 />
                             </div>
 
@@ -284,7 +397,6 @@ export function CheckoutPage() {
                                     Order Summary
                                 </h2>
 
-                                {/* Items List (Scrollable if too long) */}
                                 <div className="space-y-4 mb-6 max-h-[300px] overflow-y-auto pr-2">
                                     {items.map((item) => {
                                         const discountedPrice = item.price * (1 - (item.discount_percentage || 0) / 100);
@@ -343,7 +455,6 @@ export function CheckoutPage() {
                                 <Button
                                     className="w-full mt-6 bg-primary hover:bg-primary/90 text-primary-foreground font-display font-black italic text-lg tracking-widest py-8 angular-btn group"
                                     disabled={isProcessing || (paymentMethod === 'cod' && !isServiceable)}
-                                    // Trigger form submission via ID hack since Button is outside Form
                                     onClick={() => document.getElementById('shipping-form-submit')?.click()}
                                 >
                                     {isProcessing ? (

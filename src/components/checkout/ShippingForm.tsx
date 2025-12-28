@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { INDIAN_STATES } from "@/data/indianStates";
-import { Loader2 } from "lucide-react";
+import { Loader2, Save } from "lucide-react";
 import { useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 
 const phoneRegex = new RegExp(/^([+]?[\s0-9]+)?(\d{3}|[(]?[0-9]+[)])?([-]?[\s]?[0-9])+$/);
 
@@ -27,6 +29,7 @@ const shippingSchema = z.object({
         required_error: "Please select a state",
     }),
     pinCode: z.string().regex(/^[1-9][0-9]{5}$/, "Invalid PIN code (6 digits)"),
+    saveAddress: z.boolean().optional(),
 });
 
 export type ShippingFormData = z.infer<typeof shippingSchema>;
@@ -37,6 +40,7 @@ interface ShippingFormProps {
     onPinCodeChange?: (pinCode: string) => void;
     isLoading?: boolean;
     isServiceable?: boolean | null;
+    mode?: 'checkout' | 'address_book';
 }
 
 export function ShippingForm({
@@ -44,8 +48,12 @@ export function ShippingForm({
     onSubmit,
     onPinCodeChange,
     isLoading = false,
-    isServiceable = null
+    isServiceable = null,
+    mode = 'checkout'
 }: ShippingFormProps) {
+    const { user } = useAuth();
+
+    // Reset form when defaultValues change
     const form = useForm<ShippingFormData>({
         resolver: zodResolver(shippingSchema),
         defaultValues: {
@@ -57,13 +65,31 @@ export function ShippingForm({
             city: "",
             state: undefined,
             pinCode: "",
+            saveAddress: false,
             ...defaultValues,
         },
         mode: "onBlur"
     });
 
-    const { register, handleSubmit, formState: { errors }, watch, setValue } = form;
+    const { register, handleSubmit, formState: { errors }, watch, setValue, reset } = form;
     const pinCode = watch("pinCode");
+
+    // Watch for defaultValues changes to update form
+    useEffect(() => {
+        if (defaultValues) {
+            reset({
+                fullName: defaultValues.fullName || "",
+                email: defaultValues.email || "",
+                phone: defaultValues.phone || "",
+                addressLine1: defaultValues.addressLine1 || "",
+                addressLine2: defaultValues.addressLine2 || "",
+                city: defaultValues.city || "",
+                state: defaultValues.state,
+                pinCode: defaultValues.pinCode || "",
+                saveAddress: false,
+            });
+        }
+    }, [defaultValues, reset]);
 
     // Watch for PIN code changes
     useEffect(() => {
@@ -120,8 +146,8 @@ export function ShippingForm({
                 <div className="space-y-2">
                     <Label htmlFor="state">State</Label>
                     <Select
-                        onValueChange={(val) => setValue("state", val as any)}
-                        defaultValue={defaultValues?.state}
+                        onValueChange={(val) => setValue("state", val as any, { shouldValidate: true })}
+                        value={watch("state")}
                     >
                         <SelectTrigger>
                             <SelectValue placeholder="Select State" />
@@ -140,37 +166,67 @@ export function ShippingForm({
                 {/* PIN Code */}
                 <div className="space-y-2">
                     <Label htmlFor="pinCode">PIN Code</Label>
-                    <Input
-                        id="pinCode"
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        maxLength={6}
-                        {...register("pinCode")}
-                        placeholder="400001"
-                    />
+                    <div className="relative">
+                        <Input
+                            id="pinCode"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            maxLength={6}
+                            {...register("pinCode")}
+                            placeholder="400001"
+                        />
+                        {isLoading && (
+                            <div className="absolute right-3 top-2.5">
+                                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            </div>
+                        )}
+                    </div>
+
 
                     {errors.pinCode && <p className="text-red-500 text-xs">{errors.pinCode.message}</p>}
 
                     {/* Serviceability Status */}
-                    {pinCode?.length === 6 && isServiceable === false && (
-                        <p className="text-red-500 text-xs">❌ Not serviceable yet</p>
+                    {pinCode?.length === 6 && !isLoading && isServiceable === false && (
+                        <p className="text-red-500 text-xs font-bold mt-1">❌ Not serviceable yet</p>
                     )}
-                    {pinCode?.length === 6 && isServiceable === true && (
-                        <p className="text-green-500 text-xs">✅ Delivery available</p>
+                    {pinCode?.length === 6 && !isLoading && isServiceable === true && (
+                        <p className="text-green-500 text-xs font-bold mt-1">✅ Delivery available</p>
                     )}
                 </div>
             </div>
 
-            {/* Submit Button is handled by parent or explicit button? 
-          Usually we want the "Confirm Order" button to be outside, or inside.
-          If outside, we need to expose form ref or use context.
-          For simplicity, let's keep it handled by parent triggering submit via ref, 
-          OR put the button inside. 
-          The CheckoutPage design has "Confirm Order" at the bottom right.
-          I'll export the form ID so we can trigger it from outside, OR use a hidden submit button.
-      */}
-            <button type="submit" className="hidden" id="shipping-form-submit" />
+            {/* Save Address Option (Checkout Mode + Logged In) */}
+            {mode === 'checkout' && user && (
+                <div className="flex items-center space-x-2 pt-2">
+                    <Checkbox
+                        id="saveAddress"
+                        onCheckedChange={(checked) => setValue("saveAddress", checked as boolean)}
+                    />
+                    <label
+                        htmlFor="saveAddress"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                        Save this address for future drops
+                    </label>
+                </div>
+            )}
+
+            {/* Address Book Mode Action Button */}
+            {mode === 'address_book' && (
+                <div className="pt-4">
+                    <Button type="submit" className="w-full font-bold uppercase tracking-widest" disabled={isLoading}>
+                        {isLoading ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2 h-4 w-4" />}
+                        Save Address
+                    </Button>
+                </div>
+            )}
+
+            {/* Hidden Submit for Checkout Integration */}
+            {mode === 'checkout' && (
+                <button type="submit" className="hidden" id="shipping-form-submit" />
+            )}
+
         </form>
     );
 }
