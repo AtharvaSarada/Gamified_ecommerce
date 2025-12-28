@@ -237,6 +237,14 @@ export function CheckoutPage() {
                         console.warn("Failed to parse error response body", e);
                     }
                 }
+                if (errorMessage.includes("Variant") && errorMessage.includes("not found")) {
+                    console.warn("Stale cart detected. Clearing...");
+                    clearCart();
+                    toast.error("One or more items in your cart are no longer available. Your cart has been refreshed.", { duration: 5000 });
+                    setTimeout(() => navigate('/shop'), 1500);
+                    setIsProcessing(false);
+                    return; // Stop execution
+                }
                 throw new Error(errorMessage || "Failed to create order");
             }
 
