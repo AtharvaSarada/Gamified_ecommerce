@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { useCart } from "@/contexts/CartContext";
@@ -11,12 +11,10 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import useRazorpay from "react-razorpay";
 
 export function CheckoutPage() {
     const { items, cartTotal, clearCart } = useCart();
     const navigate = useNavigate();
-    const [Razorpay] = useRazorpay();
 
     const [shippingData, setShippingData] = useState<ShippingFormData | null>(null);
     const [paymentMethod, setPaymentMethod] = useState<'prepaid' | 'cod'>('prepaid');
@@ -48,25 +46,43 @@ export function CheckoutPage() {
         calculateShipping();
     }, [paymentMethod, cartTotal, isServiceable]);
 
-    // Serviceability Check (Mock for now, easy to swap with ShipRocket API)
-    const handlePinCodeChange = async (pinCode: string) => {
+    // Serviceability Check
+    // FIXED: Wrapped in useCallback to prevent infinite loop
+    const handlePinCodeChange = useCallback(async (pinCode: string) => {
         setIsCheckingServiceability(true);
         try {
             await new Promise(resolve => setTimeout(resolve, 800));
             // In Production: await supabase.functions.invoke('check-serviceability', { body: { pincode: pinCode } })
             setIsServiceable(true);
-            toast.success("Delivery available to this PIN");
+            // Added distinct ID to avoid toast pile-up
+            toast.success("Delivery available to this PIN", { id: 'pincode-check' });
         } catch (error) {
             setIsServiceable(false);
             toast.error("Serviceability check failed");
         } finally {
             setIsCheckingServiceability(false);
         }
-    };
+    }, []);
 
     const handleFormSubmit = async (data: ShippingFormData) => {
         setShippingData(data);
         handlePlaceOrder(data);
+    };
+
+    // Manual Script Loader for Razorpay
+    const loadRazorpayScript = () => {
+        return new Promise((resolve) => {
+            if (document.getElementById('razorpay-checkout-js')) {
+                resolve(true);
+                return;
+            }
+            const script = document.createElement("script");
+            script.id = 'razorpay-checkout-js';
+            script.src = "https://checkout.razorpay.com/v1/checkout.js";
+            script.onload = () => resolve(true);
+            script.onerror = () => resolve(false);
+            document.body.appendChild(script);
+        });
     };
 
     const handlePlaceOrder = async (formData: ShippingFormData) => {
@@ -81,15 +97,24 @@ export function CheckoutPage() {
         }
 
         setIsProcessing(true);
+
         try {
-            // Prepare Payload
+            // 1. Load Razorpay Script FIRST if prepaid (to fail early if network issue)
+            if (paymentMethod === 'prepaid') {
+                const isLoaded = await loadRazorpayScript();
+                if (!isLoaded) {
+                    throw new Error("Razorpay SDK failed to load. Check your internet connection.");
+                }
+            }
+
+            // 2. Prepare Payload
             const payload = {
                 cart_items: items.map(item => ({
-                    variant_id: item.variantId, // Ensure mapped correctly from CartContext
+                    variant_id: item.variantId,
                     quantity: item.quantity,
-                    price: item.price // Validation happens on backend
+                    price: item.price
                 })),
-                shipping_address_id: null, // Guest checkout for now
+                shipping_address_id: null,
                 payment_provider: paymentMethod === 'prepaid' ? 'razorpay' : 'cod',
                 guest_info: {
                     email: formData.email,
@@ -109,7 +134,7 @@ export function CheckoutPage() {
 
             console.log("Creating Order via Edge Function...", payload);
 
-            // Call Supabase Edge Function
+            // 3. Call Supabase Edge Function
             const { data, error } = await supabase.functions.invoke('create-order', {
                 body: payload
             });
@@ -122,54 +147,61 @@ export function CheckoutPage() {
             console.log("Order Created:", data);
 
             if (paymentMethod === 'prepaid') {
-                // Initialize Razorpay Payment
-                handleRazorpayPayment(data);
+                // 4. Open Razorpay (Manual Implementation)
+                const options = {
+                    key: data.key,
+                    amount: data.amount,
+                    currency: data.currency,
+                    name: "Loot Drop",
+                    description: "Gaming Gear Order",
+                    order_id: data.razorpay_order_id,
+                    // Handler for Success
+                    handler: async function (response: any) {
+                        console.log("Payment Success:", response);
+                        toast.success("Payment Successful!");
+                        clearCart();
+                        navigate(`/order-success?orderId=${data.order_id}`);
+                    },
+                    prefill: {
+                        name: formData.fullName,
+                        email: formData.email,
+                        contact: formData.phone,
+                    },
+                    theme: {
+                        color: "#00E5FF", // Neon Cyan
+                    },
+                    modal: {
+                        ondismiss: function () {
+                            setIsProcessing(false);
+                            toast.info("Payment Cancelled");
+                        }
+                    }
+                };
+
+                // Initialize Razorpay
+                const rzp = new (window as any).Razorpay(options);
+
+                // Handler for Failure
+                rzp.on('payment.failed', function (response: any) {
+                    console.error("Payment Failed", response.error);
+                    toast.error(`Payment Failed: ${response.error.description}`);
+                    setIsProcessing(false);
+                });
+
+                rzp.open();
+
             } else {
                 // COD Success
                 toast.success("Order Placed Successfully!");
                 clearCart();
-                navigate(\`/order-success?orderId=\${data.order_id}\`);
+                navigate(`/order-success?orderId=${data.order_id}`);
             }
-            
+
         } catch (error: any) {
             console.error("Checkout Error:", error);
             toast.error(error.message || "Failed to place order. Please try again.");
-            setIsProcessing(false); // Stop loader only on error, keep strictly if redirecting
+            setIsProcessing(false);
         }
-    };
-
-    const handleRazorpayPayment = (orderData: any) => {
-        const options = {
-            key: orderData.key, // From Edge Function response
-            amount: orderData.amount,
-            currency: orderData.currency,
-            name: "Loot Drop",
-            description: "Gaming Gear Order",
-            order_id: orderData.razorpay_order_id,
-            handler: async (response: any) => {
-                console.log("Payment Success:", response);
-                toast.success("Payment Successful!");
-                clearCart();
-                navigate(\`/order-success?orderId=\${orderData.order_id}\`);
-            },
-            prefill: {
-                name: shippingData?.fullName,
-                email: shippingData?.email,
-                contact: shippingData?.phone,
-            },
-            theme: {
-                color: "#00E5FF", // Neon Cyan
-            },
-            modal: {
-                ondismiss: () => {
-                    setIsProcessing(false);
-                    toast.info("Payment Cancelled");
-                }
-            }
-        };
-
-        const rzp = new Razorpay(options);
-        rzp.open();
     };
 
     // Derived Totals
@@ -196,7 +228,7 @@ export function CheckoutPage() {
                                     <Truck className="w-6 h-6 text-primary" />
                                     Shipping Details
                                 </h2>
-                                <ShippingForm 
+                                <ShippingForm
                                     onSubmit={handleFormSubmit}
                                     onPinCodeChange={handlePinCodeChange}
                                     isServiceable={isServiceable}
@@ -210,15 +242,15 @@ export function CheckoutPage() {
                                     <CreditCard className="w-6 h-6 text-primary" />
                                     Payment Method
                                 </h2>
-                                <RadioGroup 
-                                    value={paymentMethod} 
+                                <RadioGroup
+                                    value={paymentMethod}
                                     onValueChange={(val) => setPaymentMethod(val as 'prepaid' | 'cod')}
                                     className="grid grid-cols-1 md:grid-cols-2 gap-4"
                                 >
                                     {/* Prepaid - Razorpay */}
                                     <div>
                                         <RadioGroupItem value="prepaid" id="prepaid" className="peer sr-only" />
-                                        <Label 
+                                        <Label
                                             htmlFor="prepaid"
                                             className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:text-primary cursor-pointer transition-all"
                                         >
@@ -231,8 +263,8 @@ export function CheckoutPage() {
                                     {/* COD */}
                                     <div>
                                         <RadioGroupItem value="cod" id="cod" className="peer sr-only" />
-                                        <Label 
-                                            htmlFor="cod" 
+                                        <Label
+                                            htmlFor="cod"
                                             className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:text-primary cursor-pointer transition-all"
                                         >
                                             <span className="text-lg font-bold uppercase italic">Cash on Delivery</span>
@@ -291,7 +323,7 @@ export function CheckoutPage() {
                                         <span className="text-muted-foreground uppercase tracking-wider">Shipping</span>
                                         <span>{shippingCost === 0 ? "FREE" : formatPrice(shippingCost)}</span>
                                     </div>
-                                    
+
                                     {paymentMethod === 'cod' && shippingCost > 0 && (
                                         <div className="text-xs text-muted-foreground text-right italic">
                                             (Free on orders above ₹1000 or prepaid)
@@ -308,9 +340,10 @@ export function CheckoutPage() {
                                     </div>
                                 </div>
 
-                                <Button 
+                                <Button
                                     className="w-full mt-6 bg-primary hover:bg-primary/90 text-primary-foreground font-display font-black italic text-lg tracking-widest py-8 angular-btn group"
                                     disabled={isProcessing || (paymentMethod === 'cod' && !isServiceable)}
+                                    // Trigger form submission via ID hack since Button is outside Form
                                     onClick={() => document.getElementById('shipping-form-submit')?.click()}
                                 >
                                     {isProcessing ? (
