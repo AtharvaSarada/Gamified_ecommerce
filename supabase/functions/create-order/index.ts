@@ -50,7 +50,7 @@ serve(async (req) => {
     for (const item of cart_items) {
       const { data: variant, error: variantError } = await supabase
         .from("product_variants")
-        .select("price, stock_quantity, product:products(base_price, discount_percentage)")
+        .select("stock_quantity, product:products(base_price, discount_percentage)")
         .eq("id", item.variant_id)
         .single();
 
