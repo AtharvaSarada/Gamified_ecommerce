@@ -47,7 +47,7 @@ export const OrdersTab: React.FC = () => {
                         *,
                         order_items (
                             *,
-                            product:products (name, image_url)
+                            product:products (name, images)
                         )
                     `)
                     .eq('user_id', user.id)
@@ -151,7 +151,7 @@ export const OrdersTab: React.FC = () => {
                         <div className="mt-6 flex items-center gap-4 overflow-x-auto pb-2 scrollbar-none">
                             {order.order_items.map((item: any, idx: number) => (
                                 <div key={idx} className="relative w-16 h-16 rounded-xl bg-white/5 border border-white/5 flex-shrink-0 group-hover:border-primary/20 transition-colors">
-                                    <img src={item.product?.image_url} alt="" className="w-full h-full object-cover rounded-xl" />
+                                    <img src={item.product?.images?.[0]} alt="" className="w-full h-full object-cover rounded-xl" />
                                     {item.quantity > 1 && (
                                         <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-background">
                                             {item.quantity}
