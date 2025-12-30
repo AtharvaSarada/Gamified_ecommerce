@@ -258,71 +258,217 @@ export interface Database {
                 }
             }
         }
-        Functions: {
-            set_default_address: {
-                Args: { address_id: string }
-                Returns: void
-            }
-            cancel_order: {
-                Args: { p_order_id: string; p_reason: string }
-                Returns: void
-            }
-            delete_user_account: {
-                Args: { p_password: string }
-                Returns: void
-            }
-            admin_update_product_stock: {
-                Args: { p_variant_id: string; p_new_stock: number; p_low_stock_threshold: number }
-                Returns: void
-            }
-            admin_restore_all_stock: {
-                Args: { p_default_stock: number }
-                Returns: number
-            }
-            admin_create_product: {
-                Args: {
-                    p_name: string;
-                    p_description: string;
-                    p_specifications: Json;
-                    p_size_chart_url: string | null;
-                    p_category: 'regular' | 'oversized';
-                    p_rarity: 'common' | 'epic' | 'legendary';
-                    p_base_price: number;
-                    p_discount_percentage: number;
-                    p_images: string[];
-                    p_variants: any; // using any for JSONB complexity
-                }
-                Returns: string // product id
-            }
-            admin_update_product: {
-                Args: {
-                    p_product_id: string;
-                    p_name: string;
-                    p_description: string;
-                    p_specifications: Json;
-                    p_size_chart_url: string | null;
-                    p_category: 'regular' | 'oversized';
-                    p_rarity: 'common' | 'epic' | 'legendary';
-                    p_base_price: number;
-                    p_discount_percentage: number;
-                    p_images: string[];
-                    p_is_active: boolean;
-                }
-                Returns: void
-            }
-            admin_delete_product: {
-                Args: { p_product_id: string }
-                Returns: void
-            }
-            apply_discount_code: {
-                Args: { p_code: string; p_cart_total: number }
-                Returns: {
-                    discount_type: string
-                    discount_value: number
-                    discount_amount: number
-                    code: string
-                }[]
-            }
+    }
+    reviews: {
+        Row: {
+            id: string
+            product_id: string
+            user_id: string
+            rating: number
+            title: string
+            comment: string
+            images: string[] | null
+            verified_purchase: boolean
+            is_published: boolean
+            created_at: string
+            updated_at: string
+            edited_at: string | null
+        }
+        Insert: {
+            id?: string
+            product_id: string
+            user_id: string
+            rating: number
+            title: string
+            comment: string
+            images?: string[] | null
+            verified_purchase?: boolean
+            is_published?: boolean
+            created_at?: string
+            updated_at?: string
+            edited_at?: string | null
+        }
+        Update: {
+            id?: string
+            product_id?: string
+            user_id?: string
+            rating?: number
+            title?: string
+            comment?: string
+            images?: string[] | null
+            verified_purchase?: boolean
+            is_published?: boolean
+            created_at?: string
+            updated_at?: string
+            edited_at?: string | null
         }
     }
+    review_votes: {
+        Row: {
+            id: string
+            review_id: string
+            user_id: string
+            vote_type: 'helpful'
+            created_at: string
+        }
+        Insert: {
+            id?: string
+            review_id: string
+            user_id: string
+            vote_type: 'helpful'
+            created_at?: string
+        }
+        Update: {
+            id?: string
+            review_id?: string
+            user_id?: string
+            vote_type?: 'helpful'
+            created_at?: string
+        }
+    }
+    review_reports: {
+        Row: {
+            id: string
+            review_id: string
+            reporter_user_id: string
+            reason: string
+            description: string | null
+            status: 'pending' | 'resolved' | 'dismissed'
+            created_at: string
+            resolved_at: string | null
+        }
+        Insert: {
+            id?: string
+            review_id: string
+            reporter_user_id: string
+            reason: string
+            description?: string | null
+            status?: 'pending' | 'resolved' | 'dismissed'
+            created_at?: string
+            resolved_at?: string | null
+        }
+        Update: {
+            id?: string
+            review_id?: string
+            reporter_user_id?: string
+            reason?: string
+            description?: string | null
+            status?: 'pending' | 'resolved' | 'dismissed'
+            created_at?: string
+            resolved_at?: string | null
+        }
+    }
+    review_responses: {
+        Row: {
+            id: string
+            review_id: string
+            responder_user_id: string
+            response_text: string
+            created_at: string
+            updated_at: string
+        }
+        Insert: {
+            id?: string
+            review_id: string
+            responder_user_id: string
+            response_text: string
+            created_at?: string
+            updated_at?: string
+        }
+        Update: {
+            id?: string
+            review_id?: string
+            responder_user_id?: string
+            response_text?: string
+            created_at?: string
+            updated_at?: string
+        }
+    }
+    Functions: {
+        set_default_address: {
+            Args: { address_id: string }
+            Returns: void
+        }
+        cancel_order: {
+            Args: { p_order_id: string; p_reason: string }
+            Returns: void
+        }
+        delete_user_account: {
+            Args: { p_password: string }
+            Returns: void
+        }
+        admin_update_product_stock: {
+            Args: { p_variant_id: string; p_new_stock: number; p_low_stock_threshold: number }
+            Returns: void
+        }
+        admin_restore_all_stock: {
+            Args: { p_default_stock: number }
+            Returns: number
+        }
+        admin_create_product: {
+            Args: {
+                p_name: string;
+                p_description: string;
+                p_specifications: Json;
+                p_size_chart_url: string | null;
+                p_category: 'regular' | 'oversized';
+                p_rarity: 'common' | 'epic' | 'legendary';
+                p_base_price: number;
+                p_discount_percentage: number;
+                p_images: string[];
+                p_variants: any; // using any for JSONB complexity
+            }
+            Returns: string // product id
+        }
+        admin_update_product: {
+            Args: {
+                p_product_id: string;
+                p_name: string;
+                p_description: string;
+                p_specifications: Json;
+                p_size_chart_url: string | null;
+                p_category: 'regular' | 'oversized';
+                p_rarity: 'common' | 'epic' | 'legendary';
+                p_base_price: number;
+                p_discount_percentage: number;
+                p_images: string[];
+                p_is_active: boolean;
+            }
+            Returns: void
+        }
+        admin_delete_product: {
+            Args: { p_product_id: string }
+            Returns: void
+        }
+        apply_discount_code: {
+            Args: { p_code: string; p_cart_total: number }
+            Returns: {
+                discount_type: string
+                discount_value: number
+                discount_amount: number
+                code: string
+            }[]
+        }
+        check_rate_limit: {
+            Args: { p_user_id: string }
+            Returns: boolean
+        }
+        check_user_purchased_product: {
+            Args: { u_id: string; p_id: string }
+            Returns: boolean
+        }
+        get_product_rating_summary: {
+            Args: { p_id: string }
+            Returns: {
+                avg_rating: number
+                review_count: number
+                five_star: number
+                four_star: number
+                three_star: number
+                two_star: number
+                one_star: number
+            }[]
+        }
+    }
+}
 }

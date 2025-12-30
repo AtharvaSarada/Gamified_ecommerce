@@ -9,7 +9,16 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PriceDisplay } from "@/components/PriceDisplay";
 import { useCart } from "@/contexts/CartContext";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { ReviewsList } from "@/components/reviews/ReviewsList";
+import { ReviewForm } from "@/components/reviews/ReviewForm";
+import { ReviewSummary } from "@/components/reviews/ReviewSummary";
+import { ReportReviewModal } from "@/components/reviews/ReportReviewModal";
+import { useAuth } from "@/contexts/AuthContext";
+import { checkProfanity } from "@/utils/profanityFilter"; // Just to ensure import exists if used
+
+
+
 
 const fetchProductById = async (id: string) => {
     try {
@@ -30,10 +39,120 @@ export function ProductDetailsPage() {
     const [selectedImageIndex, setSelectedImageIndex] = useState(0);
     const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
+    // Review System State
+    const { user } = useAuth();
+    const [isReviewFormOpen, setIsReviewFormOpen] = useState(false);
+    const [ratingData, setRatingData] = useState<any>(null);
+    const [userReviewStatus, setUserReviewStatus] = useState<{ hasPurchased: boolean; hasReviewed: boolean }>({ hasPurchased: false, hasReviewed: false });
+    const [optimisticReviews, setOptimisticReviews] = useState<any[]>([]);
+
     // Reset image selection when product changes
     React.useEffect(() => {
         setSelectedImageIndex(0);
+        setOptimisticReviews([]);
+        setIsReviewFormOpen(false);
     }, [id]);
+
+    // Fetch Ratings & User Status
+    React.useEffect(() => {
+        if (!id) return;
+
+        const fetchData = async () => {
+            // 1. Fetch Rating Summary
+            // Try cache first
+            let { data: summary, error } = await supabase
+                .from('product_rating_cache')
+                .select('*')
+                .eq('product_id', id)
+                .single();
+
+            if (!summary || error) {
+                // Fallback to RPC
+                const { data: rpcData } = await supabase.rpc('get_product_rating_summary' as any, { p_id: id } as any);
+                if (rpcData && (rpcData as any).length > 0) {
+                    summary = (rpcData as any)[0];
+                }
+            }
+
+            // Default if nothing
+            if (!summary) {
+                summary = { avg_rating: 0, review_count: 0, five_star: 0, four_star: 0, three_star: 0, two_star: 0, one_star: 0 };
+            }
+            setRatingData(summary);
+
+            // 2. Check User Status (if logged in)
+            if (user) {
+                const { data: purchased } = await supabase.rpc('check_user_purchased_product', { u_id: user.id, p_id: id });
+                // Check if already reviewed (client side check or simple select)
+                const { count } = await supabase.from('reviews')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('product_id', id)
+                    .eq('user_id', user.id);
+
+                setUserReviewStatus({
+                    hasPurchased: purchased || false,
+                    hasReviewed: (count || 0) > 0
+                });
+            }
+        };
+
+        fetchData();
+    }, [id, user]);
+
+    // JSON-LD Injection
+    React.useEffect(() => {
+        if (!product || !ratingData) return;
+        const p = product as any;
+
+        const script = document.createElement('script');
+        script.type = 'application/ld+json';
+        script.text = JSON.stringify({
+            "@context": "https://schema.org/",
+            "@type": "Product",
+            "name": p.name,
+            "description": p.description,
+            "image": p.images || [],
+            "sku": p.id,
+            "offers": {
+                "@type": "Offer",
+                "priceCurrency": "USD", // Or dynamic
+                "price": p.base_price,
+                "availability": "https://schema.org/InStock"
+            },
+            "aggregateRating": ratingData.review_count > 0 ? {
+                "@type": "AggregateRating",
+                "ratingValue": ratingData.avg_rating,
+                "reviewCount": ratingData.review_count,
+                "bestRating": "5",
+                "worstRating": "1"
+            } : undefined
+        });
+
+        document.head.appendChild(script);
+
+        return () => {
+            document.head.removeChild(script);
+        };
+    }, [product, ratingData]);
+
+    // Optimistic Handlers
+    const handleOptimisticAdd = (review: any) => {
+        setOptimisticReviews(prev => [review, ...prev]);
+        setIsReviewFormOpen(false);
+        setUserReviewStatus(prev => ({ ...prev, hasReviewed: true }));
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const handleOptimisticRemove = (tempId: string) => {
+        setOptimisticReviews(prev => prev.filter(r => r.id !== tempId));
+        setUserReviewStatus(prev => ({ ...prev, hasReviewed: false }));
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const handleOptimisticReplace = (tempId: string, realReview: any) => {
+        setOptimisticReviews(prev => prev.map(r => r.id === tempId ? realReview : r));
+    };
+
 
     const { data: product, isLoading, error } = useQuery({
         queryKey: ["product", id],
@@ -215,6 +334,22 @@ export function ProductDetailsPage() {
                                 <h1 className="text-4xl md:text-5xl lg:text-6xl font-display font-black tracking-tighter uppercase italic neon-text mb-4">
                                     {p.name}
                                 </h1>
+                                {ratingData && ratingData.review_count > 0 && (
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <div className="flex items-center text-yellow-500">
+                                            <span className="font-bold mr-1">{Number(ratingData.avg_rating).toFixed(1)}</span>
+                                            {[...Array(5)].map((_, i) => (
+                                                <svg key={i} className={`w-4 h-4 ${i < Math.round(ratingData.avg_rating) ? 'fill-current' : 'text-gray-600 fill-current opacity-20'}`} viewBox="0 0 20 20">
+                                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                                </svg>
+                                            ))}
+                                        </div>
+                                        <a href="#reviews" className="text-sm text-muted-foreground hover:text-primary transition-colors underline decoration-dotted underline-offset-4">
+                                            {ratingData.review_count} reviews
+                                        </a>
+                                    </div>
+                                )}
+
                                 <div className="flex items-center gap-4 mb-6">
                                     <PriceDisplay
                                         basePrice={p.base_price}
@@ -351,6 +486,93 @@ export function ProductDetailsPage() {
                     </div>
                 </div>
             </main>
+
+            {/* Reviews Section Integration */}
+            <section id="reviews" className="bg-black/20 border-t border-white/5 py-16">
+                <div className="container mx-auto px-4">
+                    <div className="flex flex-col md:flex-row gap-12">
+                        {/* Left: Summary & CTA */}
+                        <div className="md:w-1/3 space-y-8">
+                            <h2 className="text-3xl font-display font-black uppercase italic tracking-tighter">
+                                Operator Debriefs
+                            </h2>
+
+                            {ratingData && (
+                                <ReviewSummary
+                                    avgRating={Number(ratingData.avg_rating)}
+                                    totalReviews={ratingData.review_count}
+                                    distribution={{
+                                        five: ratingData.five_star,
+                                        four: ratingData.four_star,
+                                        three: ratingData.three_star,
+                                        two: ratingData.two_star,
+                                        one: ratingData.one_star
+                                    }}
+                                />
+                            )}
+
+                            {!user ? (
+                                <div className="p-6 bg-primary/5 border border-primary/20 rounded-lg text-center">
+                                    <ShieldCheck className="w-8 h-8 text-primary mx-auto mb-3" />
+                                    <h3 className="font-bold text-lg mb-2">Join the Guild</h3>
+                                    <p className="text-sm text-muted-foreground mb-4">Login to verify your purchase and leave a review.</p>
+                                    <Button onClick={() => navigate('/login')} variant="outline" className="w-full">LOG_IN_TO_REVIEW</Button>
+                                </div>
+                            ) : !userReviewStatus.hasPurchased ? (
+                                <div className="p-6 bg-card border border-white/5 rounded-lg text-center opacity-75">
+                                    <h3 className="font-bold text-sm uppercase text-muted-foreground">Verified Operators Only</h3>
+                                    <p className="text-xs text-muted-foreground mt-2">Only verified purchasers can submit debriefs.</p>
+                                </div>
+                            ) : userReviewStatus.hasReviewed ? (
+                                <div className="p-6 bg-green-500/10 border border-green-500/20 rounded-lg text-center">
+                                    <CheckCircle2 className="w-8 h-8 text-green-500 mx-auto mb-3" />
+                                    <h3 className="font-bold text-green-500">Debrief Submitted</h3>
+                                    <p className="text-xs text-muted-foreground mt-2">Thank you for your intelligence report.</p>
+                                </div>
+                            ) : (
+                                <Button
+                                    onClick={() => setIsReviewFormOpen(!isReviewFormOpen)}
+                                    variant="cyber"
+                                    className="w-full h-14 text-lg font-bold"
+                                >
+                                    {isReviewFormOpen ? "CANCEL_DEBRIEF" : "WRITE_DEBRIEF"}
+                                </Button>
+                            )}
+                        </div>
+
+                        {/* Right: List or Form */}
+                        <div className="md:w-2/3">
+                            <AnimatePresence mode="wait">
+                                {isReviewFormOpen ? (
+                                    <motion.div
+                                        key="form"
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -20 }}
+                                    >
+                                        <ReviewForm
+                                            productId={id!}
+                                            onSuccess={() => { }}
+                                            onOptimisticAdd={handleOptimisticAdd}
+                                            onOptimisticRemove={handleOptimisticRemove}
+                                            onOptimisticReplace={handleOptimisticReplace}
+                                        />
+                                    </motion.div>
+                                ) : (
+                                    <motion.div
+                                        key="list"
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                    >
+                                        <ReviewsList productId={id!} optimisticReviews={optimisticReviews} />
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
 
             <Footer />
         </div>
