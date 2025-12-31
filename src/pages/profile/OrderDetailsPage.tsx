@@ -267,7 +267,7 @@ export const OrderDetailsPage = () => {
                                     // Calculate Totals for Display
                                     const itemsTotalPaid = order.total_amount - order.shipping_cost;
                                     const itemsOriginalPrice = order.order_items.reduce((acc: any, item: any) => {
-                                        return acc + ((item.product?.base_price || item.price) * item.quantity);
+                                        return acc + ((item.product?.base_price || item.price_at_purchase) * item.quantity);
                                     }, 0);
                                     const totalSavings = itemsOriginalPrice - itemsTotalPaid;
 
