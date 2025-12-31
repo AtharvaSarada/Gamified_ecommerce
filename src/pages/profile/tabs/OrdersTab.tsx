@@ -148,7 +148,22 @@ export const OrdersTab: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="mt-6 flex items-center gap-4 overflow-x-auto pb-2 scrollbar-none">
+                        {/* Product Names Preview */}
+                        <div className="mt-4 mb-2">
+                            {order.order_items.slice(0, 2).map((item: any, idx: number) => (
+                                <p key={idx} className="text-sm text-foreground/80 truncate">
+                                    <span className="text-muted-foreground mr-2">{item.quantity}x</span>
+                                    {item.product?.name}
+                                </p>
+                            ))}
+                            {order.order_items.length > 2 && (
+                                <p className="text-xs text-muted-foreground italic mt-1">
+                                    ...and {order.order_items.length - 2} more items
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="mt-2 flex items-center gap-4 overflow-x-auto pb-2 scrollbar-none">
                             {order.order_items.map((item: any, idx: number) => (
                                 <div key={idx} className="relative w-16 h-16 rounded-xl bg-white/5 border border-white/5 flex-shrink-0 group-hover:border-primary/20 transition-colors">
                                     <img src={item.product?.images?.[0]} alt="" className="w-full h-full object-cover rounded-xl" />
@@ -167,8 +182,10 @@ export const OrdersTab: React.FC = () => {
                         </div>
 
                         <div className="mt-6 pt-4 border-t border-white/5 flex justify-between items-center">
-                            <Button variant="link" className="p-0 h-auto text-xs font-bold text-primary hover:neon-text flex items-center group/btn">
-                                DETAILS <ChevronRight size={14} className="ml-1 group-hover/btn:translate-x-1 transition-transform" />
+                            <Button asChild variant="link" className="p-0 h-auto text-xs font-bold text-primary hover:neon-text flex items-center group/btn">
+                                <Link to={`/profile/orders/${order.id}`}>
+                                    DETAILS <ChevronRight size={14} className="ml-1 group-hover/btn:translate-x-1 transition-transform" />
+                                </Link>
                             </Button>
                             {order.status === 'shipped' && (
                                 <Button size="sm" variant="outline" className="text-[10px] h-8 font-bold border-primary/20 hover:bg-primary/10">

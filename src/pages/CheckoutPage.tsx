@@ -42,9 +42,10 @@ export function CheckoutPage() {
                     .order('is_default', { ascending: false });
 
                 if (data && data.length > 0) {
-                    setSavedAddresses(data);
+                    const addresses = data as any[];
+                    setSavedAddresses(addresses);
                     // Automatically select default address
-                    const defaultAddr = data.find((a: any) => a.is_default) || data[0];
+                    const defaultAddr = addresses.find((a: any) => a.is_default) || addresses[0];
                     setSelectedAddressId(defaultAddr.id);
                     setFormDefaultValues({
                         fullName: defaultAddr.full_name,
@@ -162,7 +163,7 @@ export function CheckoutPage() {
         const saveAddressIfNeeded = async () => {
             if (formData.saveAddress && user) {
                 try {
-                    await supabase.from('shipping_addresses').insert({
+                    await (supabase.from('shipping_addresses') as any).insert({
                         user_id: user.id,
                         full_name: formData.fullName,
                         phone: formData.phone,
@@ -195,11 +196,14 @@ export function CheckoutPage() {
 
             // 2. Prepare Payload
             const payload = {
-                cart_items: items.map(item => ({
-                    variant_id: item.variantId,
-                    quantity: item.quantity,
-                    price: item.price
-                })),
+                cart_items: items.map(item => {
+                    const discountedPrice = item.price * (1 - (item.discount_percentage || 0) / 100);
+                    return {
+                        variant_id: item.variantId,
+                        quantity: item.quantity,
+                        price: discountedPrice
+                    };
+                }),
                 shipping_address_id: selectedAddressId !== 'new' ? selectedAddressId : null,
                 payment_provider: paymentMethod === 'prepaid' ? 'razorpay' : 'cod',
                 guest_info: {
@@ -260,9 +264,24 @@ export function CheckoutPage() {
                     description: "Gaming Gear Order",
                     order_id: data.razorpay_order_id,
                     handler: async function (response: any) {
-                        toast.success("Payment Successful!");
-                        clearCart();
-                        navigate(`/order-success?orderId=${data.order_id}`);
+                        try {
+                            const { error } = await supabase.functions.invoke('verify-payment', {
+                                body: {
+                                    razorpay_order_id: response.razorpay_order_id,
+                                    razorpay_payment_id: response.razorpay_payment_id,
+                                    razorpay_signature: response.razorpay_signature
+                                }
+                            });
+
+                            if (error) throw error;
+
+                            toast.success("Payment Successful!");
+                            clearCart();
+                            navigate(`/order-success?orderId=${data.order_id}`);
+                        } catch (err) {
+                            console.error("Verification failed", err);
+                            toast.error("Payment verified failed. Please contact support.");
+                        }
                     },
                     prefill: {
                         name: formData.fullName,

@@ -17,6 +17,7 @@ import { VerifyEmailPage, EmailVerificationBanner } from "./pages/auth/VerifyEma
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { AdminRoute } from "./components/auth/AdminRoute";
 import { ProfilePage } from "./pages/profile/ProfilePage";
+import { OrderDetailsPage } from "./pages/profile/OrderDetailsPage";
 import { AdminPage } from "./pages/AdminPage";
 import { CheckoutPage } from "./pages/CheckoutPage";
 import { OrderSuccessPage } from "./pages/OrderSuccessPage";
@@ -63,6 +64,14 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <ProfilePage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/profile/orders/:orderId"
+                  element={
+                    <ProtectedRoute>
+                      <OrderDetailsPage />
                     </ProtectedRoute>
                   }
                 />
