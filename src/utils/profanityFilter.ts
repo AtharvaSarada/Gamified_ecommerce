@@ -1,6 +1,8 @@
 
-import Filter from 'bad-words';
+import * as BadWords from 'bad-words';
 
+// Handle CJS/ESM interop for bad-words library which lacks a default export in some builds
+const Filter = (BadWords as any).default || BadWords;
 const filter = new Filter();
 
 export function checkProfanity(text: { title?: string; comment?: string }): boolean {
