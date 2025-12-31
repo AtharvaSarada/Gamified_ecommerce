@@ -77,6 +77,8 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
 
     const [stagedFiles, setStagedFiles] = React.useState<File[]>([]);
     const [stagedSizeChartFiles, setStagedSizeChartFiles] = React.useState<File[]>([]);
+    const [imagesToDelete, setImagesToDelete] = React.useState<string[]>([]);
+    const [isCleaningUp, setIsCleaningUp] = React.useState(false);
 
     const { fields: variantFields } = useFieldArray({
         control: form.control,
@@ -137,8 +139,85 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
             }
             setStagedFiles([]);
             setStagedSizeChartFiles([]);
+            setImagesToDelete([]);
         }
     }, [open, productToEdit, form]);
+
+    /**
+     * Extracts the storage path from a Supabase public URL
+     * Handles URL encoding and various Supabase URL formats
+     */
+    const extractStoragePath = (url: string): string | null => {
+        try {
+            const urlObj = new URL(url);
+            // Format: /storage/v1/object/public/{bucket}/{path}
+            const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/public\/[^/]+\/(.+)$/);
+            if (!pathMatch || !pathMatch[1]) {
+                return null;
+            }
+            return decodeURIComponent(pathMatch[1]);
+        } catch (error) {
+            console.error('URL parsing failed:', url, error);
+            return null;
+        }
+    };
+
+    const validateSupabaseUrl = (url: string): boolean => {
+        try {
+            const urlObj = new URL(url);
+            return urlObj.hostname.includes('supabase') &&
+                urlObj.pathname.includes('/storage/v1/object/public/');
+        } catch {
+            return false;
+        }
+    };
+
+    const handleImageRemove = (url: string) => {
+        setImagesToDelete(prev => [...prev, url]);
+    };
+
+    /**
+     * Deletes images from storage after successful database update
+     * Handles partial failures and logs errors for monitoring
+     */
+    const cleanupDeletedImages = async () => {
+        if (imagesToDelete.length === 0) return;
+
+        setIsCleaningUp(true);
+        const paths = imagesToDelete
+            .filter(validateSupabaseUrl)
+            .map(extractStoragePath)
+            .filter((path): path is string => path !== null);
+
+        if (paths.length === 0) {
+            setImagesToDelete([]);
+            setIsCleaningUp(false);
+            return;
+        }
+
+        try {
+            // Chunking for large batches
+            const CHUNK_SIZE = 50;
+            for (let i = 0; i < paths.length; i += CHUNK_SIZE) {
+                const chunk = paths.slice(i, i + CHUNK_SIZE);
+                const { error } = await supabase.storage
+                    .from('product-images')
+                    .remove(chunk);
+
+                if (error) {
+                    console.error('Storage cleanup failed for chunk:', chunk, error);
+                    toast.warning('Product saved, but some images may need manual cleanup');
+                } else {
+                    console.info('Images deleted successfully:', chunk);
+                }
+            }
+        } catch (error) {
+            console.error('Unexpected cleanup error:', error);
+        } finally {
+            setImagesToDelete([]);
+            setIsCleaningUp(false);
+        }
+    };
 
     const uploadImages = async (files: File[]) => {
         const uploadPromises = files.map(async (file) => {
@@ -211,6 +290,8 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     };
 
     const onSubmit = async (data: ProductFormValues) => {
+        const uploadedPaths: string[] = []; // Track uploads for rollback
+
         try {
             const productId = productToEdit?.id;
 
@@ -221,6 +302,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
             if (stagedFiles.length > 0) {
                 toast.loading('Uploading images...', { id: 'upload' });
                 newUrls = await uploadImages(stagedFiles);
+                uploadedPaths.push(...newUrls.map(url => extractStoragePath(url)).filter(Boolean) as string[]);
             }
 
             // 1b. Upload Size Chart Image
@@ -230,6 +312,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
             if (stagedSizeChartFiles.length > 0) {
                 toast.loading('Uploading size chart...', { id: 'upload-size' });
                 newSizeChartUrls = await uploadImages(stagedSizeChartFiles);
+                uploadedPaths.push(...newSizeChartUrls.map(url => extractStoragePath(url)).filter(Boolean) as string[]);
                 toast.dismiss('upload-size');
             }
 
@@ -307,13 +390,30 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                     p_variants: variantsJson
                 });
 
+
                 toast.success('Product created successfully');
             }
+
+            // 3. Clean up deleted images (only after successful DB update)
+            await cleanupDeletedImages();
 
             onSuccess();
             onOpenChange(false);
         } catch (error: any) {
             console.error('Error saving product:', error);
+
+
+            // ROLLBACK: Delete newly uploaded images if DB update fails
+            if (uploadedPaths.length > 0) {
+                console.warn('Rolling back uploads:', uploadedPaths);
+                try {
+                    await supabase.storage.from('product-images').remove(uploadedPaths);
+                    console.info('Rollback successful');
+                } catch (rollbackError) {
+                    console.error('Rollback failed:', rollbackError);
+                }
+            }
+
             if (error.message?.includes('row-level security') || error.message?.includes('permission denied')) {
                 toast.error('Permission denied: You do not have admin rights or need to run the admin_setup.sql script.');
             } else {
@@ -444,6 +544,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                                                             value={field.value}
                                                             onChange={field.onChange}
                                                             onFilesChange={setStagedFiles}
+                                                            onImageRemove={handleImageRemove}
                                                         />
                                                     </FormControl>
                                                     <FormMessage />
@@ -537,6 +638,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                                                             value={field.value || []}
                                                             onChange={field.onChange}
                                                             onFilesChange={setStagedSizeChartFiles}
+                                                            onImageRemove={handleImageRemove}
                                                         />
                                                     </FormControl>
                                                     <FormMessage />

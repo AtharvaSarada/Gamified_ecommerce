@@ -16,12 +16,14 @@ interface ImageUploadProps {
     value: string[];
     onChange: (urls: string[]) => void;
     onFilesChange?: (files: File[]) => void;
+    onImageRemove?: (url: string) => void;
 }
 
 export const ImageUpload: React.FC<ImageUploadProps> = ({
     value,
     onChange,
-    onFilesChange
+    onFilesChange,
+    onImageRemove
 }) => {
     const [images, setImages] = useState<ImageFile[]>(
         value.map((url, index) => ({
@@ -60,6 +62,11 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
     });
 
     const removeImage = (id: string) => {
+        const imageToRemove = images.find(img => img.id === id);
+        if (imageToRemove?.status === 'existing' && onImageRemove) {
+            onImageRemove(imageToRemove.url);
+        }
+
         const updatedImages = images.filter(img => img.id !== id);
         setImages(updatedImages);
 
