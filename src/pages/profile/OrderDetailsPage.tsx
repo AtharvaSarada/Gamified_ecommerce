@@ -39,7 +39,7 @@ export const OrderDetailsPage = () => {
                         shipping_address:shipping_addresses(*),
                         order_items (
                             *,
-                            product:products (name, images, id)
+                            product:products (name, images, id, base_price)
                         )
                     `)
                     .eq('id', orderId)
@@ -173,9 +173,20 @@ export const OrderDetailsPage = () => {
                                             <div className="text-xs text-muted-foreground mt-1">
                                                 Size: {item.size} | Qty: {item.quantity}
                                             </div>
-                                            <div className="mt-2 font-mono font-bold text-primary">
-                                                {formatPrice(item.price_at_purchase)}
-                                                <span className="text-[10px] text-muted-foreground ml-1 font-sans font-normal">(price paid)</span>
+                                            <div className="mt-2 font-mono font-bold flex items-center gap-2">
+                                                {/* Price Logic: Show original if discount exists */}
+                                                {(item.product?.base_price && item.product.base_price > item.price) && (
+                                                    <span className="text-muted-foreground line-through text-xs">
+                                                        {formatPrice(item.product.base_price)}
+                                                    </span>
+                                                )}
+                                                <span className="text-primary">{formatPrice(item.price)}</span>
+
+                                                {(item.product?.base_price && item.product.base_price > item.price) && (
+                                                    <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded ml-1">
+                                                        -{Math.round(((item.product.base_price - item.price) / item.product.base_price) * 100)}%
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                         <div className="flex flex-col gap-2 justify-center">
@@ -252,18 +263,40 @@ export const OrderDetailsPage = () => {
                         <div className="bg-card border border-white/5 rounded-xl p-6">
                             <h3 className="font-bold uppercase tracking-widest text-sm mb-4">Order Summary</h3>
                             <div className="space-y-2 text-sm">
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Item(s) Subtotal:</span>
-                                    <span>{formatPrice(order.total_amount - order.shipping_cost)}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Shipping:</span>
-                                    <span>{order.shipping_cost === 0 ? 'FREE' : formatPrice(order.shipping_cost)}</span>
-                                </div>
-                                <div className="border-t border-white/10 my-2 pt-2 flex justify-between font-bold text-lg">
-                                    <span>Grand Total:</span>
-                                    <span className="text-primary">{formatPrice(order.total_amount)}</span>
-                                </div>
+                                {(() => {
+                                    // Calculate Totals for Display
+                                    const itemsTotalPaid = order.total_amount - order.shipping_cost;
+                                    const itemsOriginalPrice = order.order_items.reduce((acc: any, item: any) => {
+                                        return acc + ((item.product?.base_price || item.price) * item.quantity);
+                                    }, 0);
+                                    const totalSavings = itemsOriginalPrice - itemsTotalPaid;
+
+                                    return (
+                                        <>
+                                            <div className="flex justify-between">
+                                                <span className="text-muted-foreground">Item(s) Subtotal:</span>
+                                                <span className="text-foreground">{formatPrice(itemsOriginalPrice)}</span>
+                                            </div>
+
+                                            {totalSavings > 0 && (
+                                                <div className="flex justify-between text-green-400">
+                                                    <span>Savings:</span>
+                                                    <span>-{formatPrice(totalSavings)}</span>
+                                                </div>
+                                            )}
+
+                                            <div className="flex justify-between">
+                                                <span className="text-muted-foreground">Shipping:</span>
+                                                <span>{order.shipping_cost === 0 ? 'FREE' : formatPrice(order.shipping_cost)}</span>
+                                            </div>
+
+                                            <div className="border-t border-white/10 my-2 pt-2 flex justify-between font-bold text-lg">
+                                                <span>Grand Total:</span>
+                                                <span className="text-primary">{formatPrice(order.total_amount)}</span>
+                                            </div>
+                                        </>
+                                    );
+                                })()}
                                 <div className="text-xs text-muted-foreground mt-2">
                                     To: {order.shipping_address?.full_name}
                                 </div>

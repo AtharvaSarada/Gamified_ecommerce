@@ -65,6 +65,10 @@ serve(async (req) => {
       const price = basePrice * (1 - discount / 100);
 
       subtotal += price * item.quantity;
+
+      // CRITICAL: Overwrite the price in the item object to ensure DB consistency
+      // regardless of what the frontend sent.
+      item.price = price;
     }
 
     // Hard check shipping Logic
