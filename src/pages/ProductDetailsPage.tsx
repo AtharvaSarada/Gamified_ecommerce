@@ -4,7 +4,7 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { useQuery } from "@tanstack/react-query";
 import { supabase, directFetchProducts } from "@/lib/supabase";
-import { Loader2, ArrowLeft, ShieldCheck, Zap, Info, Plus, Minus, ShoppingCart, X, Maximize2 } from "lucide-react";
+import { Loader2, ArrowLeft, ShieldCheck, Zap, Info, Plus, Minus, ShoppingCart, X, Maximize2, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PriceDisplay } from "@/components/PriceDisplay";
