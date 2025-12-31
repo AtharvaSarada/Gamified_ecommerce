@@ -39,6 +39,13 @@ export function ProductDetailsPage() {
     const [selectedImageIndex, setSelectedImageIndex] = useState(0);
     const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
+    // Fetch Product First (Fix Hoisting Issue)
+    const { data: product, isLoading, error } = useQuery({
+        queryKey: ["product", id],
+        queryFn: () => fetchProductById(id!),
+        enabled: !!id,
+    });
+
     // Review System State
     const { user } = useAuth();
     const [isReviewFormOpen, setIsReviewFormOpen] = useState(false);
@@ -149,16 +156,12 @@ export function ProductDetailsPage() {
     };
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const handleOptimisticReplace = (tempId: string, realReview: any) => {
         setOptimisticReviews(prev => prev.map(r => r.id === tempId ? realReview : r));
     };
 
-
-    const { data: product, isLoading, error } = useQuery({
-        queryKey: ["product", id],
-        queryFn: () => fetchProductById(id!),
-        enabled: !!id,
-    });
 
     if (isLoading) {
         return (
@@ -192,7 +195,7 @@ export function ProductDetailsPage() {
             variantId: variant.id,
             name: p.name,
             price: p.base_price,
-            discountPercentage: p.discount_percentage || 0,
+            // discountPercentage: p.discount_percentage || 0, // Removed to fix type error
             image: p.images?.[0] || "",
             size: selectedSize,
             quantity,
