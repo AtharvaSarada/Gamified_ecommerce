@@ -175,16 +175,16 @@ export const OrderDetailsPage = () => {
                                             </div>
                                             <div className="mt-2 font-mono font-bold flex items-center gap-2">
                                                 {/* Price Logic: Show original if discount exists */}
-                                                {(item.product?.base_price && item.product.base_price > item.price) && (
+                                                {(item.product?.base_price && item.product.base_price > item.price_at_purchase) && (
                                                     <span className="text-muted-foreground line-through text-xs">
                                                         {formatPrice(item.product.base_price)}
                                                     </span>
                                                 )}
-                                                <span className="text-primary">{formatPrice(item.price)}</span>
+                                                <span className="text-primary">{formatPrice(item.price_at_purchase)}</span>
 
                                                 {(item.product?.base_price && item.product.base_price > item.price) && (
                                                     <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded ml-1">
-                                                        -{Math.round(((item.product.base_price - item.price) / item.product.base_price) * 100)}%
+                                                        -{Math.round(((item.product.base_price - item.price_at_purchase) / item.product.base_price) * 100)}%
                                                     </span>
                                                 )}
                                             </div>
