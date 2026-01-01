@@ -419,25 +419,30 @@ export function ProductDetailsPage() {
                                         <Info className="w-3 h-3" />
                                     </h3>
                                     <div className="flex flex-wrap gap-3">
-                                        {p.product_variants.map((v: any) => (
-                                            <button
-                                                key={v.size}
-                                                disabled={v.stock_quantity === 0}
-                                                onClick={() => setSelectedSize(v.size)}
-                                                className={cn(
-                                                    "w-14 h-14 flex items-center justify-center font-display font-black border-2 transition-all relative overflow-hidden group",
-                                                    selectedSize === v.size
-                                                        ? "bg-primary text-primary-foreground border-primary shadow-[0_0_15px_rgba(0,255,240,0.3)]"
-                                                        : "bg-transparent text-muted-foreground border-border hover:border-primary/50",
-                                                    v.stock_quantity === 0 && "opacity-30 cursor-not-allowed bg-muted/20"
-                                                )}
-                                            >
-                                                {v.size}
-                                                {v.stock_quantity > 0 && v.stock_quantity <= 5 && (
-                                                    <div className="absolute top-0 right-0 w-2 h-2 bg-accent" />
-                                                )}
-                                            </button>
-                                        ))}
+                                        {p.product_variants
+                                            .sort((a: any, b: any) => {
+                                                const order: Record<string, number> = { 'S': 1, 'M': 2, 'L': 3, 'XL': 4, 'XXL': 5 };
+                                                return (order[a.size] || 99) - (order[b.size] || 99);
+                                            })
+                                            .map((v: any) => (
+                                                <button
+                                                    key={v.size}
+                                                    disabled={v.stock_quantity === 0}
+                                                    onClick={() => setSelectedSize(v.size)}
+                                                    className={cn(
+                                                        "w-14 h-14 flex items-center justify-center font-display font-black border-2 transition-all relative overflow-hidden group",
+                                                        selectedSize === v.size
+                                                            ? "bg-primary text-primary-foreground border-primary shadow-[0_0_15px_rgba(0,255,240,0.3)]"
+                                                            : "bg-transparent text-muted-foreground border-border hover:border-primary/50",
+                                                        v.stock_quantity === 0 && "opacity-30 cursor-not-allowed bg-muted/20"
+                                                    )}
+                                                >
+                                                    {v.size}
+                                                    {v.stock_quantity > 0 && v.stock_quantity <= 5 && (
+                                                        <div className="absolute top-0 right-0 w-2 h-2 bg-accent" />
+                                                    )}
+                                                </button>
+                                            ))}
                                     </div>
                                 </div>
 
