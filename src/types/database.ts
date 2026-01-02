@@ -469,6 +469,65 @@ export interface Database {
                 one_star: number
             }[]
         }
+        admin_get_kpis: {
+            Args: Record<string, never>
+            Returns: {
+                revenue: {
+                    total: number
+                    today: number
+                    last_30d: number
+                    trend: {
+                        value: number
+                        direction: 'up' | 'down' | 'flat'
+                        details?: string
+                    }
+                }
+                active_orders: number
+                users: {
+                    total: number
+                    new_today: number
+                }
+            }
+        }
+        admin_get_order_stats: {
+            Args: Record<string, never>
+            Returns: {
+                status_distribution: Record<string, number>
+                payment_distribution: Record<string, number>
+            }
+        }
+        admin_get_revenue_timeseries: {
+            Args: { p_days?: number }
+            Returns: {
+                date_label: string
+                revenue: number
+                order_count: number
+            }[]
+        }
+        admin_get_recent_activity: {
+            Args: { p_limit?: number }
+            Returns: {
+                order_id: string
+                order_number: string
+                total_amount: number
+                status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
+                payment_status: 'pending' | 'paid' | 'failed'
+                created_at: string
+                user_full_name: string | null
+                user_email: string | null
+                user_avatar: string | null
+            }[]
+        }
+        get_low_stock_products: {
+            Args: Record<string, never>
+            Returns: {
+                product_id: string
+                product_name: string
+                variant_size: string
+                stock_quantity: number
+                low_stock_threshold: number
+            }[]
+        }
     }
 }
 }
