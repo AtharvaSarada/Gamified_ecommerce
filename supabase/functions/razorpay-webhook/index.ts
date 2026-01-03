@@ -63,8 +63,8 @@ serve(async (req) => {
         const { error } = await supabase
             .from("orders")
             .update({
-                status: "paid",
-                payment_status: "active", // Razorpay status
+                status: "processing", // Move to processing after payment
+                payment_status: "paid", // Standardize as "paid"
                 razorpay_payment_id: payment.id,
                 webhook_verified: true
             })

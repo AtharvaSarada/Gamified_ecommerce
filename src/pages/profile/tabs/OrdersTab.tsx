@@ -141,7 +141,9 @@ export const OrdersTab: React.FC = () => {
                             </div>
 
                             <div className="text-left sm:text-right">
-                                <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Amount Paid</p>
+                                <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">
+                                    {order.status === 'pending_payment' || order.status === 'pending' && order.payment_status !== 'paid' ? 'Amount Payable' : 'Amount Paid'}
+                                </p>
                                 <p className="text-lg font-display font-bold text-primary">
                                     {formatPrice(order.total_amount)}
                                 </p>
