@@ -14,6 +14,7 @@ type Order = any; // Will use DB types later
 
 const statusColors = {
     pending: 'bg-yellow-500/20 text-yellow-500 border-yellow-500/20',
+    pending_payment: 'bg-yellow-500/20 text-yellow-500 border-yellow-500/20',
     processing: 'bg-blue-500/20 text-blue-500 border-blue-500/20',
     shipped: 'bg-orange-500/20 text-orange-500 border-orange-500/20',
     delivered: 'bg-green-500/20 text-green-500 border-green-500/20',
@@ -142,7 +143,7 @@ export const OrdersTab: React.FC = () => {
 
                             <div className="text-left sm:text-right">
                                 <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">
-                                    {order.status === 'pending_payment' || order.status === 'pending' && order.payment_status !== 'paid' ? 'Amount Payable' : 'Amount Paid'}
+                                    {(order.status === 'pending_payment') || (order.status === 'pending' && order.payment_status !== 'paid') ? 'Amount Payable' : 'Amount Paid'}
                                 </p>
                                 <p className="text-lg font-display font-bold text-primary">
                                     {formatPrice(order.total_amount)}
