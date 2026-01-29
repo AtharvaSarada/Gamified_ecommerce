@@ -307,8 +307,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const resetPassword = async (email: string) => {
+        // Always redirect to the production URL, even if triggering from localhost
+        // This ensures the link works on mobile/other devices and points to the live site.
+        const productionUrl = 'https://gamified-ecommerce.vercel.app/reset-password';
+
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: `${window.location.origin}/reset-password`,
+            redirectTo: productionUrl,
         });
         if (error) {
             toast.error(getErrorMessage(error));
